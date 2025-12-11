@@ -55,7 +55,7 @@ public class SLAMSystemManager : MonoBehaviour
             if (pair.provider != null && pair.controller != null)
             {
                 // ...check if their IDs match. This is a crucial sanity check.
-                if (pair.controller.DroneId == GetDroneIdFromProvider(pair.provider))
+                if (pair.controller.DroneId == pair.provider.DroneId)
                 {
                     // Subscribe the controller's UpdatePose method to the provider's event.
                     // Now, whenever the provider fires OnPoseReceived, the controller's
@@ -66,7 +66,7 @@ public class SLAMSystemManager : MonoBehaviour
                 else
                 {
                     Debug.LogError($"ID mismatch for pair '{pair.name}'! " +
-                                   $"Provider has ID {GetDroneIdFromProvider(pair.provider)}, " +
+                                   $"Provider has ID {pair.provider.DroneId}, " +
                                    $"Controller expects ID {pair.controller.DroneId}.");
                 }
             }
@@ -89,25 +89,5 @@ public class SLAMSystemManager : MonoBehaviour
             }
         }
         Debug.Log("SLAMSystemManager shut down and unsubscribed all events.");
-    }
-
-    // Helper function to get the ID from a provider, since the interface doesn't have an ID property.
-    // This uses "reflection", a way to inspect a script's properties at runtime.
-    private int GetDroneIdFromProvider(IPoseProvider provider)
-    {
-        if (provider is SyntheticPoseProvider synProvider)
-        {
-            // We can get the droneId field, but it's private.
-            // A better way would be to add DroneId to the IPoseProvider interface, but for now this works.
-            // Let's go ahead and add it to the interface to be cleaner.
-            // For now, let's assume the provider is a MonoBehaviour we can get DroneId from.
-            var droneIdField = provider.GetType().GetField("droneId",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (droneIdField != null)
-            {
-                return (int)droneIdField.GetValue(provider);
-            }
-        }
-        return -1; // Return an invalid ID if not found
     }
 }

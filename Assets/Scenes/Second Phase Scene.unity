@@ -211,6 +211,51 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &645518339
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 645518341}
+  - component: {fileID: 645518340}
+  m_Layer: 0
+  m_Name: _UDPReceiver
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &645518340
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 645518339}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ffe973e5c42e364b839722e59a467e3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UDPPoseReceiver
+  listenPort: 5005
+--- !u!4 &645518341
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 645518339}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1.86016, y: 0.84475, z: -0.47983}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1093132253
 GameObject:
   m_ObjectHideFlags: 0
@@ -369,7 +414,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SLAMSystemManager
   dronePairs:
   - name: Drone 0 Pairing
-    providerObject: {fileID: 1516303264}
+    providerObject: {fileID: 645518339}
     controllerObject: {fileID: 1979984143}
 --- !u!4 &1369132500
 Transform:
@@ -398,7 +443,8 @@ GameObject:
   - component: {fileID: 1516303268}
   - component: {fileID: 1516303267}
   - component: {fileID: 1516303266}
-  - component: {fileID: 1516303265}
+  - component: {fileID: 1516303271}
+  - component: {fileID: 1516303270}
   m_Layer: 0
   m_Name: GroundTruth_Drone0
   m_TagString: Untagged
@@ -406,21 +452,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1516303265
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1516303264}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 553e665d766017f4ebc8d0dd0c5344e1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SyntheticPoseProvider
-  config: {fileID: 11400000, guid: d413ff3a0093c1d4f9b716c55d5b2fbe, type: 2}
-  groundTruthTransform: {fileID: 1516303269}
-  droneId: 0
 --- !u!65 &1516303266
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -513,6 +544,36 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1516303270
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1516303264}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3fa62fd4d5604484d8afa28d2ea613b2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SyntheticPoseProvider
+  config: {fileID: 11400000, guid: d413ff3a0093c1d4f9b716c55d5b2fbe, type: 2}
+  groundTruthTransform: {fileID: 1516303269}
+  droneId: 0
+  broadcaster: {fileID: 1516303271}
+--- !u!114 &1516303271
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1516303264}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a510d7a9354104442b8a38b4c8d850f1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UDPPoseBroadcaster
+  remoteIpAddress: 127.0.0.1
+  remotePort: 5005
 --- !u!1001 &1979984142
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -584,3 +645,4 @@ SceneRoots:
   - {fileID: 1369132500}
   - {fileID: 1516303269}
   - {fileID: 1979984142}
+  - {fileID: 645518341}

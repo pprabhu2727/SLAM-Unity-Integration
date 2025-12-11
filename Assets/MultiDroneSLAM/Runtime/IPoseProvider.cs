@@ -4,6 +4,8 @@
 /// </summary>
 public interface IPoseProvider
 {
+    int DroneId { get; }
+
     // An event that fires whenever a new pose data packet is available.
     // Other scripts can "subscribe" to this to get updates.
     event System.Action<PoseData> OnPoseReceived;
