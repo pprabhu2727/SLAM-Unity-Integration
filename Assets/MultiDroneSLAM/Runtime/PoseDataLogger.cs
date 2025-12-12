@@ -23,7 +23,6 @@ public class PoseDataLogger : MonoBehaviour
     // OnDisable is called when the component is deactivated.
     private void OnDisable()
     {
-        // IMPORTANT: Always unsubscribe from events to prevent errors and memory leaks.
         if (_poseProvider != null)
         {
             _poseProvider.OnPoseReceived -= LogPose;

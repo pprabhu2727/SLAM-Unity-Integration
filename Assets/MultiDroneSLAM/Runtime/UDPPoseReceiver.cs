@@ -23,7 +23,7 @@ public class UDPPoseReceiver : MonoBehaviour, IPoseProvider
     // --- Threading and Networking Members ---
     private UdpClient _udpClient;
     private Thread _receiveThread;
-    private volatile bool _isRunning = false; // 'volatile' ensures the value is always read from main memory
+    private volatile bool _isRunning = false;
 
     // --- Main Thread Dispatching ---
     // We can't call Unity API from another thread. So, the network thread will add
@@ -53,7 +53,7 @@ public class UDPPoseReceiver : MonoBehaviour, IPoseProvider
             _udpClient = new UdpClient(listenPort);
             _isRunning = true;
             _receiveThread = new Thread(ListenForData);
-            _receiveThread.IsBackground = true; // This allows the application to quit even if the thread is running
+            _receiveThread.IsBackground = true; 
             _receiveThread.Start();
         }
         catch (System.Exception e)
@@ -106,8 +106,6 @@ public class UDPPoseReceiver : MonoBehaviour, IPoseProvider
             }
             catch (SocketException)
             {
-                // This exception is expected when the UdpClient is closed, so we can ignore it
-                // if we are no longer running.
                 if (_isRunning) Debug.LogError("SocketException occurred while receiving UDP data.");
             }
             catch (System.Exception e)

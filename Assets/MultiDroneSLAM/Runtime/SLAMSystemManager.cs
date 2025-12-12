@@ -1,93 +1,158 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Text;
 
 public class SLAMSystemManager : MonoBehaviour
 {
-    // We create a dedicated class to hold the pairing of a provider and a controller.
-    // The [System.Serializable] attribute is crucial; it makes this class show up
-    // in the Unity Inspector so we can configure it.
     [System.Serializable]
     public class DronePair
     {
-        public string name; // Just for organization in the Inspector
-        public GameObject providerObject; // The GameObject with the IPoseProvider
-        public GameObject controllerObject; // The GameObject with the IDroneController
+        public string name;
+        public GameObject providerObject;
+        public GameObject controllerObject;
 
-        // We will store the actual interface references here after we find them.
         [HideInInspector] public IPoseProvider provider;
         [HideInInspector] public IDroneController controller;
+        [HideInInspector] public DebugPoseViewer debugger;
     }
 
     [Header("Drone Configuration")]
-    [Tooltip("The list of all drone provider/controller pairs in the scene.")]
     [SerializeField] private List<DronePair> dronePairs = new List<DronePair>();
 
-    // Awake is called before the first frame update, even before Start().
-    // It's the ideal place to set up references.
+    [Header("Alignment Settings")]
+    [SerializeField] private int anchorDroneId = 0;
+
+    [Header("Ground Truth (For Simulation Only)")]
+    public Transform anchorTruthTransform;
+    public List<Transform> clientTruthTransforms;
+
+    private Dictionary<int, PoseData> _lastReceivedPoses = new Dictionary<int, PoseData>();
+    private Dictionary<int, Pose> _trueRelativeOffsets = new Dictionary<int, Pose>();
+
     void Awake()
     {
         InitializeSystem();
     }
 
-    // OnDestroy is called when the object is destroyed.
-    void OnDestroy()
+    void Start()
     {
-        ShutdownSystem();
+        CalculateTrueOffsets();
     }
 
     private void InitializeSystem()
     {
-        if (dronePairs.Count == 0)
-        {
-            Debug.LogWarning("SLAMSystemManager has no drone pairs configured.");
-            return;
-        }
-
-        // Loop through each configured pair.
         foreach (var pair in dronePairs)
         {
-            // Find the interfaces on the assigned GameObjects.
             pair.provider = pair.providerObject?.GetComponent<IPoseProvider>();
             pair.controller = pair.controllerObject?.GetComponent<IDroneController>();
+            pair.debugger = pair.controllerObject?.GetComponent<DebugPoseViewer>();
 
-            // --- Critical Connection Logic ---
-            // If both the provider and controller are found...
-            if (pair.provider != null && pair.controller != null)
+            if (pair.provider != null)
             {
-                // ...check if their IDs match. This is a crucial sanity check.
-                if (pair.controller.DroneId == pair.provider.DroneId)
-                {
-                    // Subscribe the controller's UpdatePose method to the provider's event.
-                    // Now, whenever the provider fires OnPoseReceived, the controller's
-                    // UpdatePose method will automatically be called.
-                    pair.provider.OnPoseReceived += pair.controller.UpdatePose;
-                    Debug.Log($"Successfully linked Provider and Controller for Drone ID: {pair.controller.DroneId}");
-                }
-                else
-                {
-                    Debug.LogError($"ID mismatch for pair '{pair.name}'! " +
-                                   $"Provider has ID {pair.provider.DroneId}, " +
-                                   $"Controller expects ID {pair.controller.DroneId}.");
-                }
+                pair.provider.OnPoseReceived += HandlePoseReceived;
             }
-            else
+
+            if (pair.debugger == null)
             {
-                Debug.LogError($"Failed to find Provider or Controller for pair '{pair.name}'. " +
-                               "Check if the scripts are attached to the correct GameObjects.");
+                Debug.LogWarning($"No DebugPoseViewer found on {pair.controllerObject.name}. Positional logs will not be shown for this drone.");
             }
         }
     }
 
     private void ShutdownSystem()
     {
-        // Loop through all pairs and unsubscribe to prevent memory leaks. This is very important!
         foreach (var pair in dronePairs)
         {
-            if (pair.provider != null && pair.controller != null)
+            if (pair.provider != null)
             {
-                pair.provider.OnPoseReceived -= pair.controller.UpdatePose;
+                pair.provider.OnPoseReceived -= HandlePoseReceived;
             }
         }
-        Debug.Log("SLAMSystemManager shut down and unsubscribed all events.");
+    }
+
+    private void CalculateTrueOffsets()
+    {
+        if (anchorTruthTransform == null)
+        {
+            Debug.LogError("Anchor Truth Transform is not assigned in the manager!");
+            return;
+        }
+
+        Pose anchorTruthPose = new Pose { position = anchorTruthTransform.position, rotation = anchorTruthTransform.rotation };
+
+        foreach (var clientTransform in clientTruthTransforms)
+        {
+            var provider = clientTransform.GetComponent<SyntheticPoseProvider>();
+            if (provider != null)
+            {
+                int clientId = provider.droneId;
+                Pose clientTruthPose = new Pose { position = clientTransform.position, rotation = clientTransform.rotation };
+
+                // The offset is the pose of the client relative to the anchor in the real world.
+                Pose relativeOffset = anchorTruthPose.Inverse() * clientTruthPose;
+                _trueRelativeOffsets[clientId] = relativeOffset;
+
+                Debug.Log($"Calculated TRUE relative offset for Drone {clientId}: Pos={relativeOffset.position.ToString("F3")}");
+            }
+        }
+    }
+
+    private void HandlePoseReceived(PoseData rawPose)
+    {
+        _lastReceivedPoses[rawPose.DroneId] = rawPose;
+        var targetController = FindControllerForId(rawPose.DroneId);
+        var targetDebugger = FindDebuggerForId(rawPose.DroneId);
+        if (targetController == null) return;
+
+        // --- ANCHOR DRONE LOGIC ---
+        if (rawPose.DroneId == anchorDroneId)
+        {
+            targetController.UpdatePose(rawPose);
+            targetDebugger?.LogInfo($"Received ANCHOR pose. Pos: {rawPose.Position.ToString("F3")}");
+            return;
+        }
+
+        if (_lastReceivedPoses.ContainsKey(anchorDroneId) && _trueRelativeOffsets.ContainsKey(rawPose.DroneId))
+        {
+            Pose anchorSlamPose = new Pose { position = _lastReceivedPoses[anchorDroneId].Position, rotation = _lastReceivedPoses[anchorDroneId].Rotation };
+            Pose trueOffset = _trueRelativeOffsets[rawPose.DroneId];
+
+            Pose correctedPose = anchorSlamPose * trueOffset;
+
+            PoseData correctedPoseData = new PoseData
+            {
+                DroneId = rawPose.DroneId,
+                Timestamp = rawPose.Timestamp,
+                Position = correctedPose.position,
+                Rotation = correctedPose.rotation,
+                TrackingConfidence = rawPose.TrackingConfidence
+            };
+
+            targetController.UpdatePose(correctedPoseData);
+            targetDebugger?.LogInfo($"Applied correction. Corrected Pos: {correctedPoseData.Position.ToString("F3")}");
+        }
+        else
+        {
+            targetDebugger?.LogInfo($"Waiting for anchor pose or offset for client {rawPose.DroneId}.");
+            targetController.UpdatePose(rawPose);
+        }
+    }
+
+    private IDroneController FindControllerForId(int id)
+    {
+        foreach (var pair in dronePairs)
+        {
+            if (pair.controller != null && pair.controller.DroneId == id) return pair.controller;
+        }
+        return null;
+    }
+
+    private DebugPoseViewer FindDebuggerForId(int id)
+    {
+        foreach (var pair in dronePairs)
+        {
+            if (pair.controller != null && pair.controller.DroneId == id) return pair.debugger;
+        }
+        return null;
     }
 }

@@ -5,7 +5,9 @@ public class SyntheticPoseProvider : MonoBehaviour
     [Header("Configuration")]
     [SerializeField] private SyntheticProviderConfig config;
     [SerializeField] private Transform groundTruthTransform;
-    [SerializeField] private int droneId = 0;
+
+    [Tooltip("The unique ID for this simulated drone.")]
+    [SerializeField] public int droneId = 0;
 
     [Header("Output")]
     [SerializeField] private UDPPoseBroadcaster broadcaster;
@@ -41,7 +43,6 @@ public class SyntheticPoseProvider : MonoBehaviour
             TrackingConfidence = 2
         };
 
-        // Send the packaged data to the broadcaster.
         broadcaster?.BroadcastPose(pose);
     }
 }
