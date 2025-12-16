@@ -755,6 +755,11 @@ MonoBehaviour:
   anchorTruthTransform: {fileID: 1516303269}
   clientTruthTransforms:
   - {fileID: 231678472}
+  enableRelocalization: 1
+  relocalizeKey: 114
+  relocalizeBlendSeconds: 0.75
+  autoRelocalizeThresholdMeters: 0.25
+  autoRelocalizeCooldownSeconds: 2
 --- !u!4 &1369132500
 Transform:
   m_ObjectHideFlags: 0
