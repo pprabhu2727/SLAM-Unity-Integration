@@ -5,7 +5,7 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "NewSyntheticProviderConfig", menuName = "MultiDroneSLAM/Synthetic Provider Config")]
 public class SyntheticProviderConfig : ScriptableObject
 {
-    [Header("Drift Settings")]
+    [Header("Drift Settings (Depreciated)")]
     [Tooltip("The amount of positional drift to accumulate per second. Simulates IMU integration error.")]
     public Vector3 driftPerSecond = new Vector3(0.01f, 0.005f, 0.01f);
 

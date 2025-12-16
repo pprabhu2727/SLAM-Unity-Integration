@@ -36,6 +36,7 @@ public class SLAMSystemManager : MonoBehaviour
 
     void Start()
     {
+        // Calculate the true offsets once at the beginning of the simulation.
         CalculateTrueOffsets();
     }
 
@@ -112,12 +113,26 @@ public class SLAMSystemManager : MonoBehaviour
             return;
         }
 
-        if (_lastReceivedPoses.ContainsKey(anchorDroneId) && _trueRelativeOffsets.ContainsKey(rawPose.DroneId))
+        // --- LIVE CLIENT ALIGNMENT LOGIC ---
+        if (_lastReceivedPoses.ContainsKey(anchorDroneId))
         {
-            Pose anchorSlamPose = new Pose { position = _lastReceivedPoses[anchorDroneId].Position, rotation = _lastReceivedPoses[anchorDroneId].Rotation };
-            Pose trueOffset = _trueRelativeOffsets[rawPose.DroneId];
+            Pose anchorSlamPose = new Pose
+            {
+                position = _lastReceivedPoses[anchorDroneId].Position,
+                rotation = _lastReceivedPoses[anchorDroneId].Rotation
+            };
 
-            Pose correctedPose = anchorSlamPose * trueOffset;
+            Pose clientSlamPose = new Pose
+            {
+                position = rawPose.Position,
+                rotation = rawPose.Rotation
+            };
+
+            // Compute client motion relative to anchor SLAM frame
+            Pose relativeClientPose = anchorSlamPose.Inverse() * clientSlamPose;
+
+            // Re-apply into anchor world frame (shared drift)
+            Pose correctedPose = anchorSlamPose * relativeClientPose;
 
             PoseData correctedPoseData = new PoseData
             {
@@ -129,13 +144,13 @@ public class SLAMSystemManager : MonoBehaviour
             };
 
             targetController.UpdatePose(correctedPoseData);
-            targetDebugger?.LogInfo($"Applied correction. Corrected Pos: {correctedPoseData.Position.ToString("F3")}");
+
+            targetDebugger?.LogInfo(
+                $"LIVE CLIENT ALIGN: Rel={relativeClientPose.position.ToString("F3")} World={correctedPose.position.ToString("F3")}"
+            );
         }
-        else
-        {
-            targetDebugger?.LogInfo($"Waiting for anchor pose or offset for client {rawPose.DroneId}.");
-            targetController.UpdatePose(rawPose);
-        }
+
+
     }
 
     private IDroneController FindControllerForId(int id)
