@@ -29,6 +29,8 @@ public class SLAMSystemManager : MonoBehaviour
     private Dictionary<int, PoseData> _lastReceivedPoses = new Dictionary<int, PoseData>();
     private Dictionary<int, Pose> _trueRelativeOffsets = new Dictionary<int, Pose>();
 
+    private PoseQualityMonitor _quality;
+
     //Relocalization Fields
     [Header("Relocalization (Phase 6)")]
     [SerializeField] private bool enableRelocalization = true;
@@ -52,12 +54,29 @@ public class SLAMSystemManager : MonoBehaviour
     private bool _isBlendingWorldCorrection = false;
     private float _lastAutoRelocalizeTime = -999f;
 
+    [Header("Pose Freshness Handling")]
+    [Tooltip("If no pose received for this long, the drone is considered stale.")]
+    [SerializeField] private float stalePoseSeconds = 0.25f;
+
+    [Tooltip("If true, stale drones stop updating pose (freeze).")]
+    [SerializeField] private bool freezeOnStalePose = true;
+
+    private Dictionary<int, bool> _isDroneStale = new Dictionary<int, bool>();
+
+
     // optional log throttling
     private int _lastDriftLogFrame = -999999;
 
     void Awake()
     {
         InitializeSystem();
+
+        _quality = GetComponent<PoseQualityMonitor>();
+        if (_quality == null)
+        {
+            Debug.LogWarning("[Phase7] PoseQualityMonitor not found on manager. Quality stats disabled.");
+        }
+
     }
 
     void Start()
@@ -114,6 +133,51 @@ public class SLAMSystemManager : MonoBehaviour
           $"| worldCorrection={(!_isBlendingWorldCorrection ? "stable" : "blending")}");
             }
         }
+        // Additional Debug logging for Quality
+        if (Time.frameCount % 120 == 0 && _quality != null)
+        {
+            for (int i = 0; i < dronePairs.Count; i++)
+            {
+                int id = dronePairs[i].provider != null ? dronePairs[i].provider.DroneId : -1;
+                if (id < 0) continue;
+
+                if (_quality.TryGetStats(id, out float pps, out float sinceLast, out float emaDt, out float emaJit))
+                {
+                    Debug.Log($"[Quality] Drone {id}: pps approx. ={pps:F1} sinceLast={sinceLast:F2}s emaDt={emaDt:F3}s emaJitter={emaJit:F3}s");
+                }
+            }
+        }
+        //Staleness
+        if (_quality != null)
+        {
+            foreach (var pair in dronePairs)
+            {
+                if (pair.controller == null) continue;
+
+                int id = pair.controller.DroneId;
+
+                if (_quality.TryGetStats(id, out _, out float sinceLast, out _, out _))
+                {
+                    bool stale = sinceLast > stalePoseSeconds;
+
+                    if (!_isDroneStale.TryGetValue(id, out bool wasStale) || wasStale != stale)
+                    {
+                        _isDroneStale[id] = stale;
+
+                        if (stale)
+                        {
+                            Debug.LogWarning($"[Stale] Drone {id} pose stale ({sinceLast:F2}s). Freezing updates.");
+                        }
+                        else
+                        {
+                            Debug.Log($"[Stale] Drone {id} pose resumed ({sinceLast:F2}s).");
+                        }
+                    }
+                }
+            }
+        }
+
+
     }
 
 
@@ -177,7 +241,17 @@ public class SLAMSystemManager : MonoBehaviour
 
     private void HandlePoseReceived(PoseData rawPose)
     {
+        _quality?.NotePacket(rawPose.DroneId);
         _lastReceivedPoses[rawPose.DroneId] = rawPose;
+
+        // Ignore incoming pose updates while stale
+        if (freezeOnStalePose && _isDroneStale.TryGetValue(rawPose.DroneId, out bool isStale) && isStale)
+        {
+                return;
+        }
+
+        
+
         var targetController = FindControllerForId(rawPose.DroneId);
         var targetDebugger = FindDebuggerForId(rawPose.DroneId);
         if (targetController == null) return;

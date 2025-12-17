@@ -723,6 +723,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1369132500}
   - component: {fileID: 1369132499}
+  - component: {fileID: 1369132501}
   m_Layer: 0
   m_Name: _SLAMSystemManager
   m_TagString: Untagged
@@ -756,10 +757,11 @@ MonoBehaviour:
   clientTruthTransforms:
   - {fileID: 231678472}
   enableRelocalization: 1
-  relocalizeKey: 114
   relocalizeBlendSeconds: 0.75
   autoRelocalizeThresholdMeters: 0.25
   autoRelocalizeCooldownSeconds: 2
+  stalePoseSeconds: 0.25
+  freezeOnStalePose: 1
 --- !u!4 &1369132500
 Transform:
   m_ObjectHideFlags: 0
@@ -775,6 +777,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1369132501
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1369132498}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eba79dac683a38e4cbcbf8534805efee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PoseQualityMonitor
+  rateWindowSeconds: 1
+  emaAlpha: 0.1
 --- !u!1 &1516303264
 GameObject:
   m_ObjectHideFlags: 0
