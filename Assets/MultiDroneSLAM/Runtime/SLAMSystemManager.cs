@@ -405,5 +405,31 @@ public class SLAMSystemManager : MonoBehaviour
         TryStartRelocalize("MANUAL (Inspector ContextMenu)");
     }
 
+    // Debug / HUD Accessors
+    public float Debug_GetAnchorDriftMeters()
+    {
+        return EstimateAnchorDriftMeters();
+    }
+
+    public bool Debug_IsRelocalizing()
+    {
+        return _isBlendingWorldCorrection;
+    }
+
+    public float Debug_GetStaleThreshold()
+    {
+        return stalePoseSeconds;
+    }
+
+    public IEnumerable<int> Debug_GetDroneIds()
+    {
+        foreach (var pair in dronePairs)
+        {
+            if (pair.controller != null)
+                yield return pair.controller.DroneId;
+        }
+    }
+
+
 
 }

@@ -724,6 +724,7 @@ GameObject:
   - component: {fileID: 1369132500}
   - component: {fileID: 1369132499}
   - component: {fileID: 1369132501}
+  - component: {fileID: 1369132502}
   m_Layer: 0
   m_Name: _SLAMSystemManager
   m_TagString: Untagged
@@ -791,6 +792,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PoseQualityMonitor
   rateWindowSeconds: 1
   emaAlpha: 0.1
+--- !u!114 &1369132502
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1369132498}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 40109c13349535d4e89bd839c91d7ca0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SLAMDebugHUD
+  slamManager: {fileID: 1369132499}
+  qualityMonitor: {fileID: 1369132501}
+  showHUD: 1
+  fontSize: 14
+  refreshHz: 10
 --- !u!1 &1516303264
 GameObject:
   m_ObjectHideFlags: 0
