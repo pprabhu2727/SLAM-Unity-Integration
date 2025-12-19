@@ -31,6 +31,8 @@ public class SLAMSystemManager : MonoBehaviour
 
     private PoseQualityMonitor _quality;
 
+    private Dictionary<int, Transform> _truthByDroneId = new Dictionary<int, Transform>();
+
     //Relocalization Fields
     [Header("Relocalization (Phase 6)")]
     [SerializeField] private bool enableRelocalization = true;
@@ -63,6 +65,21 @@ public class SLAMSystemManager : MonoBehaviour
 
     private Dictionary<int, bool> _isDroneStale = new Dictionary<int, bool>();
 
+    [Header("Anchor Management (Phase 8)")]
+    [SerializeField] private int minTrackingConfidenceForAnchor = 1;
+    [SerializeField] private float anchorRecheckSeconds = 0.5f;
+    private float _lastAnchorCheckTime = -999f;
+    private Dictionary<int, int> _lastTrackingConfidence = new Dictionary<int, int>();
+
+    [Header("Anchor Failure Thresholds")]
+    [SerializeField] private float anchorFailureSeconds = 10.0f;
+    private float _anchorUnhealthyStartTime = -1f;
+    [SerializeField] private float anchorSwitchCooldownSeconds = 5.0f;
+    private float _lastAnchorSwitchTime = -999f;
+
+
+
+
 
     // optional log throttling
     private int _lastDriftLogFrame = -999999;
@@ -83,6 +100,24 @@ public class SLAMSystemManager : MonoBehaviour
     {
         // Calculate the true offsets once at the beginning of the simulation.
         CalculateTrueOffsets();
+
+        // Register truth transforms by drone ID
+        _truthByDroneId.Clear();
+
+        if (anchorTruthTransform != null)
+        {
+            _truthByDroneId[anchorDroneId] = anchorTruthTransform;
+        }
+
+        foreach (var t in clientTruthTransforms)
+        {
+            var provider = t.GetComponent<SyntheticPoseProvider>();
+            if (provider != null)
+            {
+                _truthByDroneId[provider.droneId] = t;
+            }
+        }
+
     }
 
     private void Update()
@@ -133,6 +168,7 @@ public class SLAMSystemManager : MonoBehaviour
           $"| worldCorrection={(!_isBlendingWorldCorrection ? "stable" : "blending")}");
             }
         }
+
         // Additional Debug logging for Quality
         if (Time.frameCount % 120 == 0 && _quality != null)
         {
@@ -147,6 +183,7 @@ public class SLAMSystemManager : MonoBehaviour
                 }
             }
         }
+
         //Staleness
         if (_quality != null)
         {
@@ -173,6 +210,27 @@ public class SLAMSystemManager : MonoBehaviour
                             Debug.Log($"[Stale] Drone {id} pose resumed ({sinceLast:F2}s).");
                         }
                     }
+                }
+            }
+        }
+
+        //Anchor Health
+        if (Time.time - _lastAnchorCheckTime > anchorRecheckSeconds)
+        {
+            _lastAnchorCheckTime = Time.time;
+
+            if (IsAnchorFailed() &&
+                Time.time - _lastAnchorSwitchTime > anchorSwitchCooldownSeconds)
+            {
+                int candidate = FindBestAnchorCandidate();
+                if (candidate >= 0)
+                {
+                    SwitchAnchor(candidate);
+                    _lastAnchorSwitchTime = Time.time;
+                }
+                else
+                {
+                    Debug.LogError("[AnchorSwitch] No healthy anchor candidates available.");
                 }
             }
         }
@@ -250,7 +308,7 @@ public class SLAMSystemManager : MonoBehaviour
                 return;
         }
 
-        
+        _lastTrackingConfidence[rawPose.DroneId] = rawPose.TrackingConfidence;
 
         var targetController = FindControllerForId(rawPose.DroneId);
         var targetDebugger = FindDebuggerForId(rawPose.DroneId);
@@ -430,6 +488,160 @@ public class SLAMSystemManager : MonoBehaviour
         }
     }
 
+    // --- Anchor Related Helper Methods ---
+    private bool IsAnchorFailed()
+    {
+        if (!_lastReceivedPoses.ContainsKey(anchorDroneId))
+            return true;
+
+        bool stale = _isDroneStale.TryGetValue(anchorDroneId, out bool s) && s;
+        bool lowConfidence = _lastTrackingConfidence.TryGetValue(anchorDroneId, out int conf) &&
+                             conf < minTrackingConfidenceForAnchor;
+
+        if (stale || lowConfidence)
+        { 
+            if (_anchorUnhealthyStartTime < 0f)
+                _anchorUnhealthyStartTime = Time.time;
+
+            //Debug Log
+            if (Time.frameCount % 60 == 0)
+            {
+                Debug.LogWarning(
+                    $"[AnchorHealth] Anchor unhealthy for {(Time.time - _anchorUnhealthyStartTime):F2}s " +
+                    $"(stale={stale}, conf={(lowConfidence ? "LOW" : "OK")})"
+                );
+            }
+
+            // Has been continuously unhealthy long enough and is considered failed
+            if (Time.time - _anchorUnhealthyStartTime >= anchorFailureSeconds)
+                return true;
+
+            return false; // not failed yet
+        }
+
+        // Anchor is healthy. Reset timer
+        _anchorUnhealthyStartTime = -1f;
+        return false;
+    }
+
+
+    private int FindBestAnchorCandidate()
+    {
+        foreach (var pair in dronePairs)
+        {
+            if (pair.controller == null) continue;
+
+            int id = pair.controller.DroneId;
+            if (id == anchorDroneId) continue;
+
+            if (_isDroneStale.TryGetValue(id, out bool stale) && stale)
+                continue;
+
+            if (_lastTrackingConfidence.TryGetValue(id, out int conf) &&
+                conf >= minTrackingConfidenceForAnchor)
+            {
+                return id;
+            }
+        }
+
+        return -1;
+    }
+
+    private void SwitchAnchor(int newAnchorId)
+    {
+        if (newAnchorId == anchorDroneId) return;
+
+        Debug.LogWarning($"[AnchorSwitch] Switching anchor from {anchorDroneId} to {newAnchorId}");
+
+        // We must re-anchor the world so visual positions do not jump.
+        // WorldCorrection_new * NewAnchorSlamPose == OldAnchorWorldPose
+
+        Pose oldAnchorWorldPose = Pose.identity;
+
+        if (_lastReceivedPoses.ContainsKey(anchorDroneId))
+        {
+            Pose oldAnchorSlam = new Pose
+            {
+                position = _lastReceivedPoses[anchorDroneId].Position,
+                rotation = _lastReceivedPoses[anchorDroneId].Rotation
+            };
+
+            oldAnchorWorldPose = _worldCorrection * oldAnchorSlam;
+        }
+
+        Pose newAnchorSlamPose = new Pose
+        {
+            position = _lastReceivedPoses[newAnchorId].Position,
+            rotation = _lastReceivedPoses[newAnchorId].Rotation
+        };
+
+        // Solve: newWorldCorrection * newAnchorSlamPose = oldAnchorWorldPose
+        Pose newWorldCorrection = oldAnchorWorldPose * newAnchorSlamPose.Inverse();
+
+        _worldCorrection = newWorldCorrection;
+        _worldCorrectionStart = newWorldCorrection;
+        _worldCorrectionTarget = newWorldCorrection;
+        _isBlendingWorldCorrection = false;
+
+        anchorDroneId = newAnchorId;
+        _anchorUnhealthyStartTime = -1f;
+
+        // Switch the anchor truth reference
+        if (_truthByDroneId.TryGetValue(newAnchorId, out Transform newTruth))
+        {
+            anchorTruthTransform = newTruth;
+            Debug.Log($"[AnchorSwitch] Anchor truth switched to GroundTruth of drone {newAnchorId}");
+        }
+        else
+        {
+            Debug.LogWarning($"[AnchorSwitch] No truth transform registered for drone {newAnchorId}");
+        }
+
+        Debug.Log($"[AnchorSwitch] New anchor={anchorDroneId} WorldCorrection={PoseUtils.ToStringF3(_worldCorrection)}");
+        
+        RecalculateOffsetsForNewAnchor();
+
+    }
+
+    private void RecalculateOffsetsForNewAnchor()
+    {
+        _trueRelativeOffsets.Clear();
+
+        if (anchorTruthTransform == null) return;
+
+        Pose anchorTruthPose = new Pose
+        {
+            position = anchorTruthTransform.position,
+            rotation = anchorTruthTransform.rotation
+        };
+
+        foreach (var kvp in _truthByDroneId)
+        {
+            int id = kvp.Key;
+            if (id == anchorDroneId) continue;
+
+            Transform clientTruth = kvp.Value;
+
+            Pose clientTruthPose = new Pose
+            {
+                position = clientTruth.position,
+                rotation = clientTruth.rotation
+            };
+
+            Pose offset = anchorTruthPose.Inverse() * clientTruthPose;
+            _trueRelativeOffsets[id] = offset;
+
+            Debug.Log($"[AnchorSwitch] Recomputed offset for Drone {id}: {offset.position.ToString("F3")}");
+        }
+    }
+
+
+    public int Debug_GetAnchorId()
+    {
+        return anchorDroneId;
+    }
+
+    // --- ---
 
 
 }

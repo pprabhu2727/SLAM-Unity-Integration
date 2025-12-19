@@ -64,6 +64,7 @@ public class SLAMDebugHUD : MonoBehaviour
 
         sb.AppendLine($"Anchor Drift: {drift:F3} m");
         sb.AppendLine($"Relocalizing: {(relocalizing ? "YES" : "NO")}");
+        sb.AppendLine($"Current Anchor: {slamManager.Debug_GetAnchorId()}");
         sb.AppendLine("");
 
         if (qualityMonitor == null)
