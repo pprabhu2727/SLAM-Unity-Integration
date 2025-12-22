@@ -78,6 +78,9 @@ public class SLAMSystemManager : MonoBehaviour
     private float _lastAnchorSwitchTime = -999f;
 
 
+    [Header("Startup Guard")]
+    [SerializeField] private float startupGraceSeconds = 2.0f;
+    private float _startupTime;
 
 
 
@@ -86,6 +89,7 @@ public class SLAMSystemManager : MonoBehaviour
 
     void Awake()
     {
+        _startupTime = Time.time;
         InitializeSystem();
 
         _quality = GetComponent<PoseQualityMonitor>();
@@ -218,6 +222,10 @@ public class SLAMSystemManager : MonoBehaviour
         if (Time.time - _lastAnchorCheckTime > anchorRecheckSeconds)
         {
             _lastAnchorCheckTime = Time.time;
+
+            //Don't try anchor switching on startup
+            if (Time.time - _startupTime < startupGraceSeconds)
+                return;
 
             if (IsAnchorFailed() &&
                 Time.time - _lastAnchorSwitchTime > anchorSwitchCooldownSeconds)

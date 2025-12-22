@@ -13,6 +13,12 @@ public class SyntheticPoseProvider : MonoBehaviour
     [Header("Output")]
     [SerializeField] private UDPPoseBroadcaster broadcaster;
 
+    [Header("RealSense Compatibility")]
+    [SerializeField] private float outputHz = 60f;
+
+    private float _nextSendTime = 0f;
+
+
     //private Vector3 _accumulatedDrift;
 
     //private void Start()
@@ -27,6 +33,11 @@ public class SyntheticPoseProvider : MonoBehaviour
         {
             return;
         }
+
+        if (Time.time < _nextSendTime)
+            return;
+
+        _nextSendTime = Time.time + (1f / outputHz);
 
         //_accumulatedDrift += config.driftPerSecond * Time.deltaTime;
 
@@ -55,4 +66,6 @@ public class SyntheticPoseProvider : MonoBehaviour
             Debug.Log($"[SyntheticPoseProvider {droneId}] GT={groundTruthTransform.position.ToString("F2")} Drift={globalDrift.ToString("F2")}");
         }
     }
+
+
 }
