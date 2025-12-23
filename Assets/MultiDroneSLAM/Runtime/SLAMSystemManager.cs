@@ -11,6 +11,9 @@ public class SLAMSystemManager : MonoBehaviour
         public GameObject providerObject;
         public GameObject controllerObject;
 
+        [Tooltip("Collision safety radius in meters (SLAM space).")]
+        public float safetyRadius = 0.5f;
+
         [HideInInspector] public IPoseProvider provider;
         [HideInInspector] public IDroneController controller;
         [HideInInspector] public DebugPoseViewer debugger;
@@ -28,6 +31,8 @@ public class SLAMSystemManager : MonoBehaviour
 
     private Dictionary<int, PoseData> _lastReceivedPoses = new Dictionary<int, PoseData>();
     private Dictionary<int, Pose> _trueRelativeOffsets = new Dictionary<int, Pose>();
+
+    private Dictionary<int, Vector3> _lastWorldPositions = new Dictionary<int, Vector3>();
 
     private PoseQualityMonitor _quality;
 
@@ -243,6 +248,7 @@ public class SLAMSystemManager : MonoBehaviour
             }
         }
 
+        CheckForCollisions();
 
     }
 
@@ -338,6 +344,7 @@ public class SLAMSystemManager : MonoBehaviour
             };
 
             targetController.UpdatePose(anchorWorldPoseData);
+            _lastWorldPositions[rawPose.DroneId] = anchorWorldPoseData.Position;
             targetDebugger?.LogInfo($"ANCHOR WORLD: {anchorWorldPoseData.Position.ToString("F3")}");
             return;
 
@@ -374,6 +381,7 @@ public class SLAMSystemManager : MonoBehaviour
                 Rotation = correctedWorldPose.rotation,
                 TrackingConfidence = rawPose.TrackingConfidence
             };
+            _lastWorldPositions[rawPose.DroneId] = correctedWorldPose.position;
 
             targetController.UpdatePose(correctedPoseData);
 
@@ -647,6 +655,45 @@ public class SLAMSystemManager : MonoBehaviour
     public int Debug_GetAnchorId()
     {
         return anchorDroneId;
+    }
+
+    // --- ---
+
+    // --- Collision Related Methods ---
+    private void CheckForCollisions()
+    {
+        for (int i = 0; i < dronePairs.Count; i++)
+        {
+            var a = dronePairs[i];
+            if (a.controller == null) continue;
+
+            int idA = a.controller.DroneId;
+            if (!_lastWorldPositions.ContainsKey(idA)) continue;
+
+            Vector3 posA = _lastWorldPositions[idA];
+
+            for (int j = i + 1; j < dronePairs.Count; j++)
+            {
+                var b = dronePairs[j];
+                if (b.controller == null) continue;
+
+                int idB = b.controller.DroneId;
+                if (!_lastWorldPositions.ContainsKey(idB)) continue;
+
+                Vector3 posB = _lastWorldPositions[idB];
+
+                float distance = Vector3.Distance(posA, posB);
+                float safeDistance = a.safetyRadius + b.safetyRadius;
+
+                if (distance < safeDistance)
+                {
+                    Debug.LogWarning(
+                        $"[CollisionRisk] Drones {idA} and {idB} TOO CLOSE! " +
+                        $"dist={distance:F2}m safe={safeDistance:F2}m"
+                    );
+                }
+            }
+        }
     }
 
     // --- ---

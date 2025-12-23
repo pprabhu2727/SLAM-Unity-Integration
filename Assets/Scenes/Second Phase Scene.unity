@@ -204,6 +204,7 @@ MonoBehaviour:
   sharedDrift: {fileID: 1217174466}
   droneId: 1
   broadcaster: {fileID: 231678468}
+  outputHz: 60
 --- !u!114 &231678468
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -748,10 +749,12 @@ MonoBehaviour:
   - name: Drone 0 Pairing
     providerObject: {fileID: 645518339}
     controllerObject: {fileID: 1979984143}
+    safetyRadius: 0.7
     debugger: {fileID: 0}
   - name: Drone 1 Pairing
     providerObject: {fileID: 38539794}
     controllerObject: {fileID: 1557795929}
+    safetyRadius: 0.7
     debugger: {fileID: 0}
   anchorDroneId: 0
   anchorTruthTransform: {fileID: 1516303269}
@@ -763,6 +766,11 @@ MonoBehaviour:
   autoRelocalizeCooldownSeconds: 2
   stalePoseSeconds: 0.25
   freezeOnStalePose: 1
+  minTrackingConfidenceForAnchor: 1
+  anchorRecheckSeconds: 0.5
+  anchorFailureSeconds: 10
+  anchorSwitchCooldownSeconds: 5
+  startupGraceSeconds: 2
 --- !u!4 &1369132500
 Transform:
   m_ObjectHideFlags: 0
@@ -940,6 +948,7 @@ MonoBehaviour:
   sharedDrift: {fileID: 1217174466}
   droneId: 0
   broadcaster: {fileID: 1516303271}
+  outputHz: 60
 --- !u!114 &1516303271
 MonoBehaviour:
   m_ObjectHideFlags: 0
