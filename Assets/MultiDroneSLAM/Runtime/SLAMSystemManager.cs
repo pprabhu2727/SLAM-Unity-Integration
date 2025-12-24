@@ -82,10 +82,23 @@ public class SLAMSystemManager : MonoBehaviour
     [SerializeField] private float anchorSwitchCooldownSeconds = 5.0f;
     private float _lastAnchorSwitchTime = -999f;
 
-
     [Header("Startup Guard")]
     [SerializeField] private float startupGraceSeconds = 2.0f;
     private float _startupTime;
+
+    [Header("Predictive Collision (Phase 12)")]
+    [SerializeField] private float predictionHorizonSeconds = 2.0f;
+    [SerializeField] private float minRelativeSpeed = 0.05f;
+
+    private class PoseSample
+    {
+        public Vector3 position;
+        public double timestamp;
+    }
+
+    private Dictionary<int, PoseSample> _previousPose = new Dictionary<int, PoseSample>();
+    private Dictionary<int, Vector3> _estimatedVelocity = new Dictionary<int, Vector3>();
+
 
 
 
@@ -249,6 +262,7 @@ public class SLAMSystemManager : MonoBehaviour
         }
 
         CheckForCollisions();
+        CheckForPredictedCollisions();
 
     }
 
@@ -345,6 +359,7 @@ public class SLAMSystemManager : MonoBehaviour
 
             targetController.UpdatePose(anchorWorldPoseData);
             _lastWorldPositions[rawPose.DroneId] = anchorWorldPoseData.Position;
+            UpdateVelocityEstimate(rawPose.DroneId, anchorWorldPoseData.Position, rawPose.Timestamp);
             targetDebugger?.LogInfo($"ANCHOR WORLD: {anchorWorldPoseData.Position.ToString("F3")}");
             return;
 
@@ -382,6 +397,7 @@ public class SLAMSystemManager : MonoBehaviour
                 TrackingConfidence = rawPose.TrackingConfidence
             };
             _lastWorldPositions[rawPose.DroneId] = correctedWorldPose.position;
+            UpdateVelocityEstimate(rawPose.DroneId, correctedWorldPose.position, rawPose.Timestamp);
 
             targetController.UpdatePose(correctedPoseData);
 
@@ -690,6 +706,80 @@ public class SLAMSystemManager : MonoBehaviour
                     Debug.LogWarning(
                         $"[CollisionRisk] Drones {idA} and {idB} TOO CLOSE! " +
                         $"dist={distance:F2}m safe={safeDistance:F2}m"
+                    );
+                }
+            }
+        }
+    }
+
+    private void UpdateVelocityEstimate(int droneId, Vector3 currentPos, double timestamp)
+    {
+        if (_previousPose.TryGetValue(droneId, out PoseSample prev))
+        {
+            double dt = timestamp - prev.timestamp;
+            if (dt > 1e-4)
+            {
+                Vector3 velocity = (currentPos - prev.position) / (float)dt;
+                _estimatedVelocity[droneId] = velocity;
+            }
+        }
+
+        _previousPose[droneId] = new PoseSample
+        {
+            position = currentPos,
+            timestamp = timestamp
+        };
+    }
+
+    private void CheckForPredictedCollisions()
+    {
+        for (int i = 0; i < dronePairs.Count; i++)
+        {
+            var a = dronePairs[i];
+            if (a.controller == null) continue;
+
+            int idA = a.controller.DroneId;
+            if (!_lastWorldPositions.ContainsKey(idA) || !_estimatedVelocity.ContainsKey(idA))
+                continue;
+
+            Vector3 pA = _lastWorldPositions[idA];
+            Vector3 vA = _estimatedVelocity[idA];
+
+            for (int j = i + 1; j < dronePairs.Count; j++)
+            {
+                var b = dronePairs[j];
+                if (b.controller == null) continue;
+
+                int idB = b.controller.DroneId;
+                if (!_lastWorldPositions.ContainsKey(idB) || !_estimatedVelocity.ContainsKey(idB))
+                    continue;
+
+                Vector3 pB = _lastWorldPositions[idB];
+                Vector3 vB = _estimatedVelocity[idB];
+
+                Vector3 pRel = pB - pA;
+                Vector3 vRel = vB - vA;
+
+                float speedSq = vRel.sqrMagnitude;
+                if (speedSq < minRelativeSpeed * minRelativeSpeed)
+                    continue;
+
+                float tClosest = -Vector3.Dot(pRel, vRel) / speedSq;
+
+                if (tClosest <= 0f || tClosest > predictionHorizonSeconds)
+                    continue;
+
+                Vector3 pA_future = pA + vA * tClosest;
+                Vector3 pB_future = pB + vB * tClosest;
+
+                float futureDistance = Vector3.Distance(pA_future, pB_future);
+                float safeDistance = a.safetyRadius + b.safetyRadius;
+
+                if (futureDistance < safeDistance)
+                {
+                    Debug.LogWarning(
+                        $"[PredictedCollision] Drones {idA} & {idB} " +
+                        $"TTC={tClosest:F2}s futureDist={futureDistance:F2}m safe={safeDistance:F2}m"
                     );
                 }
             }
