@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class GroundTruthController : MonoBehaviour
+public class GroundTruthController : MonoBehaviour, IMotionLimiter
 {
     [Header("Drone Identity")]
     public int droneId = 0;
@@ -9,6 +9,11 @@ public class GroundTruthController : MonoBehaviour
     [Header("Movement Settings")]
     public float moveSpeed = 1.5f;
     public float rotateSpeed = 90f;
+
+    [Header("Collision Avoidance")]
+    [Range(0f, 1f)]
+    [SerializeField] private float speedScale = 1.0f;
+
 
     private Vector2 moveInput;
     private float yawInput;
@@ -61,11 +66,19 @@ public class GroundTruthController : MonoBehaviour
             transform.forward * moveInput.y +
             transform.right * moveInput.x;
 
-        transform.position += movement * moveSpeed * Time.deltaTime;
+        transform.position += movement * moveSpeed * speedScale * Time.deltaTime;
         transform.rotation *= Quaternion.Euler(0f, yawInput * rotateSpeed * Time.deltaTime, 0f);
 
         Debug.Log(
-            $"[GroundTruth {droneId}] Pos={transform.position.ToString("F2")} RotY={transform.eulerAngles.y:F1}"
+            $"[GroundTruth {droneId}] Pos={transform.position.ToString("F2")} RotY={transform.eulerAngles.y:F1} SpeedScale={speedScale:F2}"
         );
     }
+
+    public void SetSpeedScale(float scale)
+    {
+        speedScale = Mathf.Clamp01(scale);
+        Debug.Log($"[LimiterApply] GroundTruth {droneId} speedScale set => {speedScale:F2}");
+    }
+
+
 }

@@ -77,6 +77,9 @@ public class SLAMDebugHUD : MonoBehaviour
         {
             int id = info;
 
+            float speed = 0f;
+            bool hasSpeed = slamManager.Debug_TryGetDroneSpeed(id, out speed);
+
             if (qualityMonitor.TryGetStats(id, out float pps, out float sinceLast, out float emaDt, out float emaJitter))
             {
                 bool stale = sinceLast > slamManager.Debug_GetStaleThreshold();
@@ -86,6 +89,7 @@ public class SLAMDebugHUD : MonoBehaviour
                     $"dt {emaDt,5:F3}s | jitter {emaJitter,5:F3}s | " +
                     $"{(stale ? "STALE" : "OK")}"
                 );
+                sb.AppendLine($"speed {(hasSpeed ? speed.ToString("F2") : "--"),5} m/s | ");
             }
             else
             {

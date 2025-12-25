@@ -38,8 +38,13 @@ public class SLAMSystemManager : MonoBehaviour
 
     private Dictionary<int, Transform> _truthByDroneId = new Dictionary<int, Transform>();
 
+    private Dictionary<int, IMotionLimiter> _motionLimiters = new();
+    private Dictionary<int, float> _frameSpeedLimits = new();
+
+
+
     //Relocalization Fields
-    [Header("Relocalization (Phase 6)")]
+    [Header("Relocalization")]
     [SerializeField] private bool enableRelocalization = true;
 
     //[Tooltip("Press this key to re-anchor the drifting SLAM world back onto Anchor Truth. (Depreciated)")]
@@ -70,7 +75,7 @@ public class SLAMSystemManager : MonoBehaviour
 
     private Dictionary<int, bool> _isDroneStale = new Dictionary<int, bool>();
 
-    [Header("Anchor Management (Phase 8)")]
+    [Header("Anchor Management")]
     [SerializeField] private int minTrackingConfidenceForAnchor = 1;
     [SerializeField] private float anchorRecheckSeconds = 0.5f;
     private float _lastAnchorCheckTime = -999f;
@@ -86,9 +91,22 @@ public class SLAMSystemManager : MonoBehaviour
     [SerializeField] private float startupGraceSeconds = 2.0f;
     private float _startupTime;
 
-    [Header("Predictive Collision (Phase 12)")]
+    [Header("Predictive Collision")]
     [SerializeField] private float predictionHorizonSeconds = 2.0f;
     [SerializeField] private float minRelativeSpeed = 0.05f;
+
+    [Header("Collision Prevention")]
+    [SerializeField] private bool enableCollisionPrevention = true;
+
+    [Tooltip("Distance at which slowing begins (meters).")]
+    [SerializeField] private float slowDownDistance = 2f;
+
+    [Tooltip("Distance at which motion toward another drone is blocked.")]
+    [SerializeField] private float hardStopDistance = 1f;
+
+    [Tooltip("Maximum speed allowed when fully slowed.")]
+    [SerializeField] private float minAllowedSpeed = 0.01f;
+
 
     private class PoseSample
     {
@@ -140,11 +158,22 @@ public class SLAMSystemManager : MonoBehaviour
             }
         }
 
+        RegisterMotionLimitersFromTruth();
+
+
     }
 
     private void Update()
     {
         if (!enableRelocalization) return;
+
+        _frameSpeedLimits.Clear();
+
+        foreach (var id in _motionLimiters.Keys)
+        {
+            _frameSpeedLimits[id] = 1f;
+        }
+
 
         //// Manual relocalize
         //if (Input.GetKeyDown(relocalizeKey))
@@ -261,8 +290,23 @@ public class SLAMSystemManager : MonoBehaviour
             }
         }
 
-        CheckForCollisions();
-        CheckForPredictedCollisions();
+
+        //ResetSpeedLimits();
+        if (enableCollisionPrevention)
+        {
+            CheckForCollisions();
+            CheckForPredictedCollisions();
+        }
+
+        foreach (var kvp in _frameSpeedLimits)
+        {
+            if (_motionLimiters.TryGetValue(kvp.Key, out var limiter))
+            {
+                limiter.SetSpeedScale(kvp.Value);
+            }
+        }
+
+
 
     }
 
@@ -284,7 +328,14 @@ public class SLAMSystemManager : MonoBehaviour
             {
                 Debug.LogWarning($"No DebugPoseViewer found on {pair.controllerObject.name}. Positional logs will not be shown for this drone.");
             }
+
+            Debug.Log($"[Limiter] Registered motion limiters: {_motionLimiters.Count}");
+            foreach (var kvp in _motionLimiters)
+                Debug.Log($"[Limiter] id={kvp.Key} limiter={kvp.Value}");
+
         }
+
+
     }
 
     private void ShutdownSystem()
@@ -781,9 +832,109 @@ public class SLAMSystemManager : MonoBehaviour
                         $"[PredictedCollision] Drones {idA} & {idB} " +
                         $"TTC={tClosest:F2}s futureDist={futureDistance:F2}m safe={safeDistance:F2}m"
                     );
+
+                    Vector3 toB = (pB - pA).normalized;
+
+                    bool aMovingToward = IsMovingToward(vA, toB);
+                    bool bMovingToward = IsMovingToward(vB, -toB);
+
+                    Vector3 relDir = pRel.normalized;
+                    float closingSpeed = Mathf.Max(0f, Vector3.Dot(vRel, relDir));
+
+                    const float aggressiveClosingSpeed = 1.5f;
+                    float closing01 = Mathf.Clamp01(closingSpeed / aggressiveClosingSpeed);
+                    float closingSpeedScale = Mathf.Lerp(1f, 0.2f, closing01);
+
+                    float distanceScale = ComputeSpeedScale(futureDistance);
+
+                    float scale = Mathf.Clamp01(distanceScale * closingSpeedScale);
+
+                    if (aMovingToward && _motionLimiters.TryGetValue(idA, out var limiterA))
+                    {
+                        _frameSpeedLimits[idA] = Mathf.Min(_frameSpeedLimits[idA], scale);
+                    }
+
+                    if (bMovingToward && _motionLimiters.TryGetValue(idB, out var limiterB))
+                    {
+                        _frameSpeedLimits[idB] = Mathf.Min(_frameSpeedLimits[idB], scale);
+                    }
+
+                    Debug.LogWarning(
+                        $"[Avoidance] Drones {idA} & {idB} " +
+                        $"TTC={tClosest:F2}s dist={futureDistance:F2}m " +
+                        $"closing={closingSpeed:F2}m/s scale={scale:F2}"
+                    );
+
                 }
             }
         }
+    }
+
+    private bool IsMovingToward(Vector3 velocity, Vector3 toOther)
+    {
+        return Vector3.Dot(velocity, toOther) > 0f;
+    }
+
+    private float ComputeSpeedScale(float distance)
+    {
+        if (distance <= hardStopDistance)
+            return 0f;
+
+        if (distance >= slowDownDistance)
+            return 1f;
+
+        float t = Mathf.InverseLerp(hardStopDistance, slowDownDistance, distance);
+
+        float curved = t * t;
+
+        return Mathf.Clamp(curved, minAllowedSpeed, 1f);
+    }
+
+    private void ResetSpeedLimits()
+    {
+        foreach (var limiter in _motionLimiters.Values)
+        {
+            limiter.SetSpeedScale(1f);
+        }
+    }
+
+    private void RegisterMotionLimitersFromTruth()
+    {
+        _motionLimiters.Clear();
+
+        foreach (var kvp in _truthByDroneId)
+        {
+            int id = kvp.Key;
+            Transform truthT = kvp.Value;
+
+            if (truthT == null) continue;
+
+            var limiter = truthT.GetComponent<IMotionLimiter>();
+            if (limiter != null)
+            {
+                _motionLimiters[id] = limiter;
+                Debug.Log($"[Limiter] Registered IMotionLimiter for drone {id} on {truthT.name}");
+            }
+            else
+            {
+                Debug.LogWarning($"[Limiter] No IMotionLimiter found for drone {id} on truth object {truthT.name}");
+            }
+        }
+
+        Debug.Log($"[Limiter] Total registered limiters = {_motionLimiters.Count}");
+    }
+
+    public bool Debug_TryGetDroneSpeed(int droneId, out float speed)
+    {
+        speed = 0f;
+
+        if (_estimatedVelocity.TryGetValue(droneId, out var v))
+        {
+            speed = v.magnitude;
+            return true;
+        }
+
+        return false;
     }
 
     // --- ---

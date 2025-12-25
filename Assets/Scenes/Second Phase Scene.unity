@@ -326,6 +326,7 @@ MonoBehaviour:
   droneId: 1
   moveSpeed: 1.5
   rotateSpeed: 90
+  speedScale: 1
 --- !u!1 &373084846
 GameObject:
   m_ObjectHideFlags: 0
@@ -771,6 +772,12 @@ MonoBehaviour:
   anchorFailureSeconds: 10
   anchorSwitchCooldownSeconds: 5
   startupGraceSeconds: 2
+  predictionHorizonSeconds: 2
+  minRelativeSpeed: 0.05
+  enableCollisionPrevention: 1
+  slowDownDistance: 2
+  hardStopDistance: 1
+  minAllowedSpeed: 0.01
 --- !u!4 &1369132500
 Transform:
   m_ObjectHideFlags: 0
@@ -978,6 +985,7 @@ MonoBehaviour:
   droneId: 0
   moveSpeed: 1.5
   rotateSpeed: 90
+  speedScale: 1
 --- !u!1001 &1557795928
 PrefabInstance:
   m_ObjectHideFlags: 0
