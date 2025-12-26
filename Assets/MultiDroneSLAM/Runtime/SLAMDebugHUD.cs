@@ -80,16 +80,25 @@ public class SLAMDebugHUD : MonoBehaviour
             float speed = 0f;
             bool hasSpeed = slamManager.Debug_TryGetDroneSpeed(id, out speed);
 
+            int confidence = -1;
+            bool hasConfidence = slamManager.Debug_TryGetTrackingConfidence(id, out confidence);
+
+
             if (qualityMonitor.TryGetStats(id, out float pps, out float sinceLast, out float emaDt, out float emaJitter))
             {
                 bool stale = sinceLast > slamManager.Debug_GetStaleThreshold();
+                string confStr = hasConfidence ? ConfidenceToString(confidence) : "--";
 
                 sb.AppendLine(
                     $"Drone {id} | pps {pps,6:F1} | since {sinceLast,5:F2}s | " +
                     $"dt {emaDt,5:F3}s | jitter {emaJitter,5:F3}s | " +
                     $"{(stale ? "STALE" : "OK")}"
                 );
-                sb.AppendLine($"speed {(hasSpeed ? speed.ToString("F2") : "--"),5} m/s | ");
+                sb.AppendLine(
+                    $"speed {(hasSpeed ? speed.ToString("F2") : "--"),5} m/s | " +
+                    $"conf {(hasConfidence ? ConfidenceToString(confidence) : "--"),-7}"
+                    
+                );
             }
             else
             {
@@ -99,4 +108,16 @@ public class SLAMDebugHUD : MonoBehaviour
 
         return sb.ToString();
     }
+
+    private static string ConfidenceToString(int conf)
+    {
+        return conf switch
+        {
+            >= 2 => "GOOD",
+            1 => "LIMITED",
+            0 => "LOST",
+            _ => "--"
+        };
+    }
+
 }

@@ -40,6 +40,7 @@ public class SLAMSystemManager : MonoBehaviour
 
     private Dictionary<int, IMotionLimiter> _motionLimiters = new();
     private Dictionary<int, float> _frameSpeedLimits = new();
+    private Dictionary<int, float> _confidenceSpeedScale = new();
 
 
 
@@ -107,6 +108,13 @@ public class SLAMSystemManager : MonoBehaviour
     [Tooltip("Maximum speed allowed when fully slowed.")]
     [SerializeField] private float minAllowedSpeed = 0.01f;
 
+    [Header("SLAM Confidence Scaling (Phase 14)")]
+    [SerializeField] private bool enableConfidenceScaling = true;
+    [SerializeField] private float goodConfidenceScale = 1.0f;
+    [SerializeField] private float degradedConfidenceScale = 0.5f;
+    [SerializeField] private float poorConfidenceScale = 0.25f;
+
+
 
     private class PoseSample
     {
@@ -168,7 +176,7 @@ public class SLAMSystemManager : MonoBehaviour
         if (!enableRelocalization) return;
 
         _frameSpeedLimits.Clear();
-
+        _confidenceSpeedScale.Clear();
         foreach (var id in _motionLimiters.Keys)
         {
             _frameSpeedLimits[id] = 1f;
@@ -298,13 +306,22 @@ public class SLAMSystemManager : MonoBehaviour
             CheckForPredictedCollisions();
         }
 
-        foreach (var kvp in _frameSpeedLimits)
+        foreach (var id in _motionLimiters.Keys)
         {
-            if (_motionLimiters.TryGetValue(kvp.Key, out var limiter))
-            {
-                limiter.SetSpeedScale(kvp.Value);
-            }
+            float collisionScale = _frameSpeedLimits.TryGetValue(id, out float c) ? c : 1f;
+
+            float confidenceScale = GetConfidenceSpeedScale(id);
+
+            float finalScale = collisionScale * confidenceScale;
+
+            _motionLimiters[id].SetSpeedScale(finalScale);
+
+            Debug.Log(
+                $"[SpeedApply] Drone {id} collision={collisionScale:F2} " +
+                $"confidence={confidenceScale:F2} final={finalScale:F2}"
+            );
         }
+
 
 
 
@@ -938,6 +955,29 @@ public class SLAMSystemManager : MonoBehaviour
     }
 
     // --- ---
+
+    private float GetConfidenceSpeedScale(int droneId)
+    {
+        if (!enableConfidenceScaling)
+            return 1f;
+
+        if (!_lastTrackingConfidence.TryGetValue(droneId, out int conf))
+            return degradedConfidenceScale;
+
+        return conf switch
+        {
+            >= 2 => goodConfidenceScale,
+            1 => degradedConfidenceScale,
+            _ => poorConfidenceScale
+        };
+    }
+
+    public bool Debug_TryGetTrackingConfidence(int droneId, out int confidence)
+    {
+        return _lastTrackingConfidence.TryGetValue(droneId, out confidence);
+    }
+
+
 
 
 }

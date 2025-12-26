@@ -180,6 +180,7 @@ GameObject:
   - component: {fileID: 231678468}
   - component: {fileID: 231678467}
   - component: {fileID: 231678473}
+  - component: {fileID: 231678474}
   m_Layer: 0
   m_Name: GroundTruth_Drone1
   m_TagString: Untagged
@@ -327,6 +328,20 @@ MonoBehaviour:
   moveSpeed: 1.5
   rotateSpeed: 90
   speedScale: 1
+--- !u!114 &231678474
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 231678466}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 458bbe8ef4b0b47408f09d915087a72e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SLAMConfidenceOverride
+  enabledOverride: 0
+  forcedConfidence: 1
 --- !u!1 &373084846
 GameObject:
   m_ObjectHideFlags: 0
@@ -778,6 +793,10 @@ MonoBehaviour:
   slowDownDistance: 2
   hardStopDistance: 1
   minAllowedSpeed: 0.01
+  enableConfidenceScaling: 1
+  goodConfidenceScale: 1
+  degradedConfidenceScale: 0.5
+  poorConfidenceScale: 0.25
 --- !u!4 &1369132500
 Transform:
   m_ObjectHideFlags: 0
@@ -839,6 +858,7 @@ GameObject:
   - component: {fileID: 1516303271}
   - component: {fileID: 1516303270}
   - component: {fileID: 1516303272}
+  - component: {fileID: 1516303273}
   m_Layer: 0
   m_Name: GroundTruth_Drone0
   m_TagString: Untagged
@@ -986,6 +1006,20 @@ MonoBehaviour:
   moveSpeed: 1.5
   rotateSpeed: 90
   speedScale: 1
+--- !u!114 &1516303273
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1516303264}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 458bbe8ef4b0b47408f09d915087a72e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SLAMConfidenceOverride
+  enabledOverride: 0
+  forcedConfidence: 1
 --- !u!1001 &1557795928
 PrefabInstance:
   m_ObjectHideFlags: 0

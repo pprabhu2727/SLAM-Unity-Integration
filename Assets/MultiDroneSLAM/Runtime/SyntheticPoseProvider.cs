@@ -18,6 +18,8 @@ public class SyntheticPoseProvider : MonoBehaviour
 
     private float _nextSendTime = 0f;
 
+    private SLAMConfidenceOverride _confidenceOverride;
+
 
     //private Vector3 _accumulatedDrift;
 
@@ -25,6 +27,11 @@ public class SyntheticPoseProvider : MonoBehaviour
     //{
     //    _accumulatedDrift = Vector3.zero;
     //}
+
+    private void Awake()
+    {
+        _confidenceOverride = GetComponent<SLAMConfidenceOverride>();
+    }
 
     private void Update()
     {
@@ -50,16 +57,32 @@ public class SyntheticPoseProvider : MonoBehaviour
 
         Quaternion noisyRotation = groundTruthTransform.rotation * rotationNoise;
 
+        int confidence = 2;
+
+        if (_confidenceOverride != null && _confidenceOverride.enabledOverride)
+        {
+            confidence = _confidenceOverride.forcedConfidence;
+        }
+
         PoseData pose = new PoseData
         {
             DroneId = this.droneId,
             Timestamp = Time.timeAsDouble,
             Position = noisyPosition,
             Rotation = noisyRotation,
-            TrackingConfidence = 2
+            TrackingConfidence = confidence
         };
 
+
         broadcaster?.BroadcastPose(pose);
+
+        if (_confidenceOverride != null && _confidenceOverride.enabledOverride && Time.frameCount % 120 == 0)
+        {
+            Debug.Log(
+                $"[ConfidenceOverride] Drone {droneId} forcing TrackingConfidence={confidence}"
+            );
+        }
+
 
         if (Time.frameCount % 300 == 0)
         {
