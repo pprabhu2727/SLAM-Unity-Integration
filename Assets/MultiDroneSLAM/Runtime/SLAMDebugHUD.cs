@@ -22,6 +22,7 @@ public class SLAMDebugHUD : MonoBehaviour
         _style = new GUIStyle
         {
             fontSize = fontSize,
+            richText = true,
             normal = { textColor = Color.red }
         };
     }
@@ -42,16 +43,22 @@ public class SLAMDebugHUD : MonoBehaviour
         if (!showHUD) return;
         if (_style == null) return;
 
-        GUILayout.BeginArea(new Rect(10, 10, 500, Screen.height));
+        GUILayout.BeginArea(new Rect(10, 10, 520, Screen.height));
         GUILayout.Label(_cachedText, _style);
         GUILayout.EndArea();
     }
+
+    private string Section(string title)
+    {
+        return $"<b>=== {title} ===</b>\n";
+    }
+
 
     private string BuildHUDText()
     {
         var sb = new StringBuilder(512);
 
-        sb.AppendLine("=== Multi-Drone SLAM Debug HUD ===");
+        sb.AppendLine(Section("SLAM SYSTEM STATUS"));
 
         if (slamManager == null)
         {
@@ -62,10 +69,20 @@ public class SLAMDebugHUD : MonoBehaviour
         float drift = slamManager.Debug_GetAnchorDriftMeters();
         bool relocalizing = slamManager.Debug_IsRelocalizing();
 
-        sb.AppendLine($"Anchor Drift: {drift:F3} m");
-        sb.AppendLine($"Relocalizing: {(relocalizing ? "YES" : "NO")}");
-        sb.AppendLine($"Current Anchor: {slamManager.Debug_GetAnchorId()}");
-        sb.AppendLine("");
+        string driftColor = drift < 0.10f ? "green" : drift < 0.30f ? "yellow" : "red";
+
+        sb.AppendLine(Colorize(
+            $"Anchor Drift     : {drift:F3} m",
+            driftColor
+        ));
+
+        sb.AppendLine(Colorize(
+            $"Relocalizing     : {(relocalizing ? "YES" : "NO")}",
+            relocalizing ? "yellow" : "green"
+        ));
+
+        sb.AppendLine($"Current Anchor   : {slamManager.Debug_GetAnchorId()}");
+        sb.AppendLine();
 
         if (qualityMonitor == null)
         {
@@ -73,6 +90,7 @@ public class SLAMDebugHUD : MonoBehaviour
             return sb.ToString();
         }
 
+        sb.AppendLine(Section("SLAM QUALITY (PER DRONE)"));
         foreach (var info in slamManager.Debug_GetDroneIds())
         {
             int id = info;
@@ -88,23 +106,58 @@ public class SLAMDebugHUD : MonoBehaviour
             {
                 bool stale = sinceLast > slamManager.Debug_GetStaleThreshold();
                 string confStr = hasConfidence ? ConfidenceToString(confidence) : "--";
+                string healthColor = ColorForHealth(stale, emaJitter, sinceLast);
+                string confColor = hasConfidence ? ColorForConfidence(confidence) : "white";
 
-                sb.AppendLine(
+                sb.AppendLine(Colorize(
                     $"Drone {id} | pps {pps,6:F1} | since {sinceLast,5:F2}s | " +
                     $"dt {emaDt,5:F3}s | jitter {emaJitter,5:F3}s | " +
-                    $"{(stale ? "STALE" : "OK")}"
-                );
+                    $"{(stale ? "STALE" : "OK")}",
+                    healthColor
+                ));
+
                 sb.AppendLine(
                     $"speed {(hasSpeed ? speed.ToString("F2") : "--"),5} m/s | " +
-                    $"conf {(hasConfidence ? ConfidenceToString(confidence) : "--"),-7}"
-                    
+                    Colorize(
+                        $"conf {(hasConfidence ? ConfidenceToString(confidence) : "--"),-7}",
+                        confColor
+                    )
                 );
+
             }
             else
             {
                 sb.AppendLine($"Drone {id} | No data");
             }
+
+            sb.AppendLine();
         }
+
+        sb.AppendLine();
+        sb.AppendLine(Section("MOTION & COLLISION"));
+        bool collisionActive = slamManager.Debug_IsCollisionActive();
+
+
+        float ttc = slamManager.Debug_GetCollisionTTC();
+
+        string riskColor = ttc < 0.5f ? "red" : ttc < 1.5f ? "yellow" : "orange";
+    
+        if (!collisionActive)
+        {
+            sb.AppendLine(Colorize("No predicted collisions", "green"));
+        }
+        else
+        {
+            sb.AppendLine(Colorize($"Predicted collision in {ttc:F2} s", riskColor));
+        }
+
+        sb.AppendLine(Colorize(
+            "Soft avoidance active",
+            "yellow"
+        ));
+   
+
+
 
         return sb.ToString();
     }
@@ -119,5 +172,33 @@ public class SLAMDebugHUD : MonoBehaviour
             _ => "--"
         };
     }
+
+    private static string Colorize(string text, string color)
+    {
+        return $"<color={color}>{text}</color>";
+    }
+
+    private static string ColorForHealth(bool stale, float jitter, float sinceLast)
+    {
+        if (stale || sinceLast > 1.0f)
+            return "red";
+
+        if (jitter > 0.02f || sinceLast > 0.25f)
+            return "yellow";
+
+        return "green";
+    }
+
+    private static string ColorForConfidence(int conf)
+    {
+        return conf switch
+        {
+            >= 2 => "green",
+            1 => "yellow",
+            0 => "red",
+            _ => "white"
+        };
+    }
+
 
 }

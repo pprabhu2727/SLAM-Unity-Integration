@@ -341,7 +341,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SLAMConfidenceOverride
   enabledOverride: 0
-  forcedConfidence: 1
+  dropProbability: 0.3
+  degradedOutputHz: 15
+  maxConfidenceWhileDegraded: 1
 --- !u!1 &373084846
 GameObject:
   m_ObjectHideFlags: 0
@@ -776,6 +778,7 @@ MonoBehaviour:
   anchorTruthTransform: {fileID: 1516303269}
   clientTruthTransforms:
   - {fileID: 231678472}
+  collisionHoldSeconds: 0.25
   enableRelocalization: 1
   relocalizeBlendSeconds: 0.75
   autoRelocalizeThresholdMeters: 0.25
@@ -1019,7 +1022,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SLAMConfidenceOverride
   enabledOverride: 0
-  forcedConfidence: 1
+  dropProbability: 0.1
+  degradedOutputHz: 15
+  maxConfidenceWhileDegraded: 1
 --- !u!1001 &1557795928
 PrefabInstance:
   m_ObjectHideFlags: 0

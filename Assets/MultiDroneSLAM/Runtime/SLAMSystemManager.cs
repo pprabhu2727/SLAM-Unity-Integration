@@ -29,6 +29,11 @@ public class SLAMSystemManager : MonoBehaviour
     public Transform anchorTruthTransform;
     public List<Transform> clientTruthTransforms;
 
+    [Header("Collision Stability")]
+    [SerializeField] private float collisionHoldSeconds = 0.25f;
+    private float _collisionHoldUntil = -1f;
+
+
     private Dictionary<int, PoseData> _lastReceivedPoses = new Dictionary<int, PoseData>();
     private Dictionary<int, Pose> _trueRelativeOffsets = new Dictionary<int, Pose>();
 
@@ -114,7 +119,14 @@ public class SLAMSystemManager : MonoBehaviour
     [SerializeField] private float degradedConfidenceScale = 0.5f;
     [SerializeField] private float poorConfidenceScale = 0.25f;
 
-
+    private struct CollisionDebugState
+    {
+        public bool active;
+        public float ttc;
+        public float closingSpeed;
+        public float appliedScale;
+    }
+    private CollisionDebugState _collisionDebug;
 
     private class PoseSample
     {
@@ -177,6 +189,16 @@ public class SLAMSystemManager : MonoBehaviour
 
         _frameSpeedLimits.Clear();
         _confidenceSpeedScale.Clear();
+
+        bool collisionStillHeld = Time.time < _collisionHoldUntil;
+
+        if (!collisionStillHeld)
+        {
+            _collisionDebug.active = false;
+        }
+
+
+
         foreach (var id in _motionLimiters.Keys)
         {
             _frameSpeedLimits[id] = 1f;
@@ -308,7 +330,8 @@ public class SLAMSystemManager : MonoBehaviour
 
         foreach (var id in _motionLimiters.Keys)
         {
-            float collisionScale = _frameSpeedLimits.TryGetValue(id, out float c) ? c : 1f;
+            float collisionScale = _collisionDebug.active ? (_frameSpeedLimits.TryGetValue(id, out float c) ? c : 1f): 1f;
+
 
             float confidenceScale = GetConfidenceSpeedScale(id);
 
@@ -876,6 +899,14 @@ public class SLAMSystemManager : MonoBehaviour
                         _frameSpeedLimits[idB] = Mathf.Min(_frameSpeedLimits[idB], scale);
                     }
 
+                    //Saving info for HUD
+                    _collisionDebug.active = true;
+                    _collisionHoldUntil = Time.time + collisionHoldSeconds;
+                    _collisionDebug.ttc = tClosest;
+                    _collisionDebug.closingSpeed = closingSpeed;
+                    _collisionDebug.appliedScale = scale;
+
+
                     Debug.LogWarning(
                         $"[Avoidance] Drones {idA} & {idB} " +
                         $"TTC={tClosest:F2}s dist={futureDistance:F2}m " +
@@ -975,6 +1006,17 @@ public class SLAMSystemManager : MonoBehaviour
     public bool Debug_TryGetTrackingConfidence(int droneId, out int confidence)
     {
         return _lastTrackingConfidence.TryGetValue(droneId, out confidence);
+    }
+
+    //Accessors for HUD Collision Info
+    public bool Debug_IsCollisionActive()
+    {
+        return _collisionDebug.active;
+    }
+
+    public float Debug_GetCollisionTTC()
+    {
+        return _collisionDebug.ttc;
     }
 
 

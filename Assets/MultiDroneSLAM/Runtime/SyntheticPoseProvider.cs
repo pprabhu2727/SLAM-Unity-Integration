@@ -16,7 +16,7 @@ public class SyntheticPoseProvider : MonoBehaviour
     [Header("RealSense Compatibility")]
     [SerializeField] private float outputHz = 60f;
 
-    private float _nextSendTime = 0f;
+    private float _nextAllowedSendTime = 0f;
 
     private SLAMConfidenceOverride _confidenceOverride;
 
@@ -41,10 +41,18 @@ public class SyntheticPoseProvider : MonoBehaviour
             return;
         }
 
-        if (Time.time < _nextSendTime)
+        float effectiveHz = outputHz;
+
+        if (_confidenceOverride != null && _confidenceOverride.enabledOverride)
+        {
+            effectiveHz = Mathf.Min(outputHz, _confidenceOverride.degradedOutputHz);
+        }
+
+        if (Time.time < _nextAllowedSendTime)
             return;
 
-        _nextSendTime = Time.time + (1f / outputHz);
+        _nextAllowedSendTime = Time.time + (1f / Mathf.Max(1f, effectiveHz));
+
 
         //_accumulatedDrift += config.driftPerSecond * Time.deltaTime;
 
@@ -61,7 +69,16 @@ public class SyntheticPoseProvider : MonoBehaviour
 
         if (_confidenceOverride != null && _confidenceOverride.enabledOverride)
         {
-            confidence = _confidenceOverride.forcedConfidence;
+            confidence = Mathf.Min(confidence, _confidenceOverride.maxConfidenceWhileDegraded);
+        }
+
+        // Simulate packet loss if enabled
+        if (_confidenceOverride != null && _confidenceOverride.enabledOverride)
+        {
+            if (Random.value < _confidenceOverride.dropProbability)
+            {        
+                return;
+            }
         }
 
         PoseData pose = new PoseData
