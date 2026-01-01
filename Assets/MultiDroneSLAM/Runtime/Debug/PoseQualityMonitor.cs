@@ -18,7 +18,7 @@ public class PoseQualityMonitor : MonoBehaviour
     [Tooltip("Seconds per rate window.")]
     [SerializeField] private float rateWindowSeconds = 1.0f;
 
-    [Tooltip("EMA smoothing factor for dt/jitter (0.05-0.2 is typical).")]
+    [Tooltip("EMA smoothing factor")]
     [Range(0.01f, 0.5f)]
     [SerializeField] private float emaAlpha = 0.10f;
 

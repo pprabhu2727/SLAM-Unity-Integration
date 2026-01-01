@@ -69,9 +69,9 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
         transform.position += movement * moveSpeed * speedScale * Time.deltaTime;
         transform.rotation *= Quaternion.Euler(0f, yawInput * rotateSpeed * Time.deltaTime, 0f);
 
-        Debug.Log(
-            $"[GroundTruth {droneId}] Pos={transform.position.ToString("F2")} RotY={transform.eulerAngles.y:F1} SpeedScale={speedScale:F2}"
-        );
+        //Debug.Log(
+        //    $"[GroundTruth {droneId}] Pos={transform.position.ToString("F2")} RotY={transform.eulerAngles.y:F1} SpeedScale={speedScale:F2}"
+        //);
     }
 
     public void SetSpeedScale(float scale)

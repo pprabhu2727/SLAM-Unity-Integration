@@ -1,5 +1,5 @@
 using UnityEngine;
-using System.Collections.Concurrent; // Needed for the thread-safe queue
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -7,7 +7,6 @@ using System.Threading;
 
 public class UDPPoseReceiver : MonoBehaviour, IPoseProvider
 {
-    // IPoseProvider implementation
     public event System.Action<PoseData> OnPoseReceived;
     
     public int DroneId => droneId;
@@ -26,18 +25,13 @@ public class UDPPoseReceiver : MonoBehaviour, IPoseProvider
     private volatile bool _isRunning = false;
 
     // --- Main Thread Dispatching ---
-    // We can't call Unity API from another thread. So, the network thread will add
-    // received data to this thread-safe queue, and the main Unity thread will
-    // process it in its Update() loop.
     private readonly ConcurrentQueue<PoseData> _poseQueue = new ConcurrentQueue<PoseData>();
 
-    // Called when the script is enabled
     void OnEnable()
     {
         StartProvider();
     }
 
-    // Called when the script is disabled or destroyed
     void OnDisable()
     {
         StopProvider();
@@ -45,7 +39,7 @@ public class UDPPoseReceiver : MonoBehaviour, IPoseProvider
 
     public void StartProvider()
     {
-        if (_isRunning) return; // Already running
+        if (_isRunning) return; 
 
         Debug.Log($"Starting UDP receiver on port {listenPort}...");
         try
@@ -64,17 +58,15 @@ public class UDPPoseReceiver : MonoBehaviour, IPoseProvider
 
     public void StopProvider()
     {
-        if (!_isRunning) return; // Already stopped
+        if (!_isRunning) return; 
 
         _isRunning = false;
 
-        // Safely shut down the thread
         if (_receiveThread != null && _receiveThread.IsAlive)
         {
-            _receiveThread.Join(500); // Wait up to 500ms for the thread to finish
+            _receiveThread.Join(500); 
         }
 
-        // Close the UDP client
         if (_udpClient != null)
         {
             _udpClient.Close();
@@ -92,16 +84,16 @@ public class UDPPoseReceiver : MonoBehaviour, IPoseProvider
         {
             try
             {
-                // This is a "blocking" call - the thread will wait here until a packet is received.
+                // Thread will wait here until a packet comes in
                 byte[] data = _udpClient.Receive(ref anyIP);
 
-                // Convert the byte array to a string.
+                // Convert byte to string
                 string json = Encoding.UTF8.GetString(data);
 
-                // Deserialize the JSON string into our PoseData struct.
+                // Convert into PoseData struct
                 PoseData receivedPose = JsonUtility.FromJson<PoseData>(json);
 
-                // Add the received pose to the queue for the main thread to process.
+                // Add pose to the queue for the main thread
                 _poseQueue.Enqueue(receivedPose);
             }
             catch (SocketException)
@@ -115,13 +107,11 @@ public class UDPPoseReceiver : MonoBehaviour, IPoseProvider
         }
     }
 
-    // Update is called once per frame on the main Unity thread.
     void Update()
     {
-        // Dequeue and process any poses that the listening thread has received.
+        // Invoke any poses that the listening thread received
         while (_poseQueue.TryDequeue(out PoseData pose))
         {
-            // Now that we are on the main thread, it is safe to invoke the event.
             OnPoseReceived?.Invoke(pose);
         }
     }

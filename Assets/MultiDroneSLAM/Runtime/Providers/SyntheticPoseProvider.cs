@@ -1,5 +1,11 @@
 using UnityEngine;
 
+/* 
+ * -----------------------------------------------------------------------------
+ * SIMULATION-ONLY CODE
+ * This section is not requried for real slam integration. 
+ * -----------------------------------------------------------------------------
+ */
 public class SyntheticPoseProvider : MonoBehaviour
 {
     [Header("Configuration")]
@@ -72,7 +78,6 @@ public class SyntheticPoseProvider : MonoBehaviour
             confidence = Mathf.Min(confidence, _confidenceOverride.maxConfidenceWhileDegraded);
         }
 
-        // Simulate packet loss if enabled
         if (_confidenceOverride != null && _confidenceOverride.enabledOverride)
         {
             if (Random.value < _confidenceOverride.dropProbability)
@@ -89,7 +94,6 @@ public class SyntheticPoseProvider : MonoBehaviour
             Rotation = noisyRotation,
             TrackingConfidence = confidence
         };
-
 
         broadcaster?.BroadcastPose(pose);
 

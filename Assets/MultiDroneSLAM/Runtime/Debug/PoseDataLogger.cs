@@ -1,17 +1,16 @@
 using UnityEngine;
-
+/*
+ * This class is no longer really needed. Other Loggers contain more specific and useful information.
+ */
 public class PoseDataLogger : MonoBehaviour
 {
     private IPoseProvider _poseProvider;
 
-    // OnEnable is called when the component is activated.
     private void OnEnable()
     {
-        // Find the pose provider on the same GameObject.
         _poseProvider = GetComponent<IPoseProvider>();
         if (_poseProvider != null)
         {
-            // Subscribe our LogPose method to the provider's event.
             _poseProvider.OnPoseReceived += LogPose;
         }
         else
@@ -20,7 +19,6 @@ public class PoseDataLogger : MonoBehaviour
         }
     }
 
-    // OnDisable is called when the component is deactivated.
     private void OnDisable()
     {
         if (_poseProvider != null)
@@ -29,7 +27,6 @@ public class PoseDataLogger : MonoBehaviour
         }
     }
 
-    // This method will be called every time the provider sends new data.
     private void LogPose(PoseData pose)
     {
         Debug.Log($"Received Pose! ID: {pose.DroneId}, Pos: {pose.Position.ToString("F3")}");

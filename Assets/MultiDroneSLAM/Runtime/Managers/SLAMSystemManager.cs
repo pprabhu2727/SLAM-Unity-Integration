@@ -140,7 +140,7 @@ public class SLAMSystemManager : MonoBehaviour
 
 
 
-    // optional log throttling
+    // Throttles periodic drift diagnostics
     private int _lastDriftLogFrame = -999999;
 
     void Awake()
@@ -389,6 +389,12 @@ public class SLAMSystemManager : MonoBehaviour
         }
     }
 
+    /* 
+     * -----------------------------------------------------------------------------
+     * SIMULATION-ONLY CODE
+     * This section is not requried for real slam integration. 
+     * -----------------------------------------------------------------------------
+     */
     private void CalculateTrueOffsets()
     {
         if (anchorTruthTransform == null)
@@ -522,6 +528,12 @@ public class SLAMSystemManager : MonoBehaviour
         return null;
     }
 
+    /* 
+     * -----------------------------------------------------------------------------
+     * CONTAINS SIMULATION-ONLY CODE
+     * Parts of this section is not requried for real slam integration. 
+     * -----------------------------------------------------------------------------
+     */
     private float EstimateAnchorDriftMeters()
     {
         if (anchorTruthTransform == null) return -1f;
@@ -726,6 +738,12 @@ public class SLAMSystemManager : MonoBehaviour
 
     }
 
+    /* 
+     * -----------------------------------------------------------------------------
+     * SIMULATION-ONLY CODE
+     * This section is not requried for real slam integration. 
+     * -----------------------------------------------------------------------------
+     */
     private void RecalculateOffsetsForNewAnchor()
     {
         _trueRelativeOffsets.Clear();

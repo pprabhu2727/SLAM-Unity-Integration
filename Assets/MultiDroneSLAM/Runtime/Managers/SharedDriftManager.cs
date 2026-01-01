@@ -1,5 +1,11 @@
 using UnityEngine;
 
+/* 
+ * -----------------------------------------------------------------------------
+ * SIMULATION-ONLY CODE
+ * This section is not requried for real slam integration. 
+ * -----------------------------------------------------------------------------
+ */
 public class SharedDriftManager : MonoBehaviour
 {
     [Header("Global Drift (World Frame)")]
