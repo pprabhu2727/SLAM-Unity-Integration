@@ -5,9 +5,9 @@ public interface IPoseProvider
     // Fires whenever a new pose data packet is available
     event System.Action<PoseData> OnPoseReceived;
 
-    // Initialize the provider (can do things like, open a network port)
+    // Initialize
     void StartProvider();
 
-    // Clean up and stop the provider (can do things like, close the network port)
+    // Clean up
     void StopProvider();
 }
