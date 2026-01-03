@@ -5,6 +5,9 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 
+/*
+ * Defines how SLAM data should enter Unity (by using UDP)
+ */
 public class UDPPoseReceiver : MonoBehaviour, IPoseProvider
 {
     public event System.Action<PoseData> OnPoseReceived;
@@ -42,6 +45,8 @@ public class UDPPoseReceiver : MonoBehaviour, IPoseProvider
         if (_isRunning) return; 
 
         Debug.Log($"Starting UDP receiver on port {listenPort}...");
+
+        //Opens UDP socket and continuously listens for data
         try
         {
             _udpClient = new UdpClient(listenPort);
@@ -107,6 +112,7 @@ public class UDPPoseReceiver : MonoBehaviour, IPoseProvider
         }
     }
 
+    //Where SLAM data enters Unity logic. Poses invoked here are used in other files' logic
     void Update()
     {
         // Invoke any poses that the listening thread received

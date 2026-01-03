@@ -1,6 +1,8 @@
 using UnityEngine;
 
-/// Structure representing the state of a drone at a given moment. Just contains metadata.
+/* 
+ * Structure representing the state of a drone at a given moment. Just contains metadata.
+ */
 public struct PoseData
 {
     // The unique ID

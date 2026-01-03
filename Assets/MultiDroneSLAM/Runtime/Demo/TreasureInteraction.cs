@@ -1,12 +1,15 @@
 using UnityEngine;
 
+/*
+ * A basic file that prints a console message whenever a drone collides with the treasure object
+ * Not an important file but useful for testing that collision detection is functional
+ */
 public class TreasureInteraction : MonoBehaviour
 {
-    // This Unity function is called automatically when another collider enters
-    // the trigger collider attached to this GameObject.
+
     private void OnTriggerEnter(Collider other)
     {
-        // Check if the object that hit us is actually a drone.
+        // Check if the object that hit us is actually a drone
         IDroneController drone = other.GetComponent<IDroneController>();
 
         if (drone != null)

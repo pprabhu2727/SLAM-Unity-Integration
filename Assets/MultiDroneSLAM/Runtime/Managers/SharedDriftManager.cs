@@ -4,6 +4,11 @@ using UnityEngine;
  * -----------------------------------------------------------------------------
  * SIMULATION-ONLY CODE
  * This section is not requried for real slam integration. 
+ * 
+ * Dealing with global drift here and not local drift of the drones. 
+ * SLAM is already expected to have aligned two drones within the same coordinate system, but the cameras and shared coordinate system itself can be flawed with drift or bias.
+ * This means the entire shared map can drift which is what this file simulates. 
+ * Any drones aligned to this shared map share this same global drift that the shared SLAM map has. 
  * -----------------------------------------------------------------------------
  */
 public class SharedDriftManager : MonoBehaviour

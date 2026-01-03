@@ -3,6 +3,10 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
+/*
+ * This is a synthetic broadcaster meant to imitate how SLAM is broadcast out. 
+ * When integrating actual SLAM cameras and outputs, this class is no longer needed but can be used as a reference for how to output that data
+ */
 public class UDPPoseBroadcaster : MonoBehaviour
 {
     [Header("Network Settings")]
@@ -15,6 +19,7 @@ public class UDPPoseBroadcaster : MonoBehaviour
     private UdpClient _udpClient;
     private IPEndPoint _remoteEndPoint;
 
+    //Intialize the network
     void Start()
     {
         _udpClient = new UdpClient();
@@ -28,7 +33,7 @@ public class UDPPoseBroadcaster : MonoBehaviour
     }
 
 
-    /// Serializes a PoseData struct to JSON and broadcasts it over UDP.
+    // Serializes a PoseData struct to JSON and broadcasts it over UDP.
     public void BroadcastPose(PoseData pose)
     {
         if (_udpClient == null) return;

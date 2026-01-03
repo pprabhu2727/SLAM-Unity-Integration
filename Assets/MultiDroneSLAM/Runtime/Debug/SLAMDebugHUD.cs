@@ -1,6 +1,9 @@
 using UnityEngine;
 using System.Text;
 
+/*
+ * Creates the on screen text output seen when running the game
+ */
 public class SLAMDebugHUD : MonoBehaviour
 {
     [Header("References")]

@@ -1,16 +1,20 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+/*
+ * Tracks the health and quality of SLAM pose data coming in
+ * Metrics tracked are used for other aspects including the HUD and detecting stale pose streams
+ */
 public class PoseQualityMonitor : MonoBehaviour
 {
     private class DroneStats
     {
         public int droneId;
-        public int packetsInWindow;
+        public int packetsInWindow; //# of packets received
         public float windowStartTime;
         public float lastPacketTime;
-        public float emaDelta;
-        public float emaJitter;
+        public float emaDelta; //exponential moving average (dt) ("a moving average that places greater emphasis on recent data points")
+        public float emaJitter; // exponential moving average of jitter
         public bool initialized;
     }
 
@@ -24,8 +28,10 @@ public class PoseQualityMonitor : MonoBehaviour
 
     private readonly Dictionary<int, DroneStats> _stats = new Dictionary<int, DroneStats>();
 
+    //Records pose packet for a given drone
     public void NotePacket(int droneId)
     {
+        //Creates a stats entry for the first packet for this drone
         if (!_stats.TryGetValue(droneId, out var s))
         {
             s = new DroneStats
@@ -50,6 +56,7 @@ public class PoseQualityMonitor : MonoBehaviour
         }
         else
         {
+            //First packet intializes values
             s.emaDelta = dt;
             s.emaJitter = 0f;
             s.initialized = true;
@@ -58,7 +65,7 @@ public class PoseQualityMonitor : MonoBehaviour
         s.lastPacketTime = now;
         s.packetsInWindow++;
 
-        // reset rate window
+        // reset rate window if duration is over
         if (now - s.windowStartTime >= rateWindowSeconds)
         {
             s.packetsInWindow = 0;
@@ -66,6 +73,7 @@ public class PoseQualityMonitor : MonoBehaviour
         }
     }
 
+    //Returns metrics for the drone
     public bool TryGetStats(int droneId, out float packetsPerSecond, out float secondsSinceLast, out float emaDt, out float emaJitter)
     {
         packetsPerSecond = 0; secondsSinceLast = 0; emaDt = 0; emaJitter = 0;

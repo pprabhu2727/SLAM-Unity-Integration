@@ -1,6 +1,9 @@
 using UnityEngine;
 
-// File used to  create instances of this class in the Unity Editor's asset creation menu.
+/* 
+ * File used to  create instances of SytheticPoseProviders so each drone can have different noise settings
+ * Not really needed but can be helpful. Not needed if actually integrating SLAM cameras. 
+ */
 [CreateAssetMenu(fileName = "NewSyntheticProviderConfig", menuName = "MultiDroneSLAM/Synthetic Provider Config")]
 public class SyntheticProviderConfig : ScriptableObject
 {

@@ -1,6 +1,9 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+/*
+ * This file adds controls for moving the ground truth drone objects
+ */
 public class GroundTruthController : MonoBehaviour, IMotionLimiter
 {
     [Header("Drone Identity")]
@@ -29,7 +32,7 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
         if (Keyboard.current == null)
             return;
 
-        // --- Drone 0 Controls ---
+        // --- Drone 0 Controls (WASD) ---
         if (droneId == 0)
         {
             moveInput = Vector2.zero;
@@ -44,7 +47,7 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
             if (Keyboard.current.qKey.isPressed) yawInput -= 1f;
         }
 
-        // --- Drone 1 Controls ---
+        // --- Drone 1 Controls (IJKL) ---
         if (droneId == 1)
         {
             moveInput = Vector2.zero;
@@ -62,9 +65,8 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
 
     private void ApplyMovement()
     {
-        Vector3 movement =
-            transform.forward * moveInput.y +
-            transform.right * moveInput.x;
+        //Expressed in local frame
+        Vector3 movement = transform.forward * moveInput.y + transform.right * moveInput.x;
 
         transform.position += movement * moveSpeed * speedScale * Time.deltaTime;
         transform.rotation *= Quaternion.Euler(0f, yawInput * rotateSpeed * Time.deltaTime, 0f);
@@ -74,6 +76,7 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
         //);
     }
 
+    //Sets the speed of the drone to be within a valid range
     public void SetSpeedScale(float scale)
     {
         speedScale = Mathf.Clamp01(scale);

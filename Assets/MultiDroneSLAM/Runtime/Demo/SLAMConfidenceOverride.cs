@@ -1,5 +1,8 @@
 using UnityEngine;
-
+/*
+ * This class allows a user to manually degrade the performance of SLAM
+ * Used for Demo purposes only. Not needed for functionality.
+ */
 public class SLAMConfidenceOverride : MonoBehaviour
 {
     [Header("Enable")]
