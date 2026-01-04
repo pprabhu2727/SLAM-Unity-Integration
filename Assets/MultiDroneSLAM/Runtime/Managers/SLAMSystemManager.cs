@@ -2,14 +2,20 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Text;
 
+/*
+ * This is the main class of this project that takes in pose data and does stuff in Unity with it.
+ * 
+ * It does the following: takes in pose, aligns multiple drones, drift correction and relocalization, pose quality tracking, anchor health and switching,
+ *      velocity estimation, predictive collision detection and soft prevention, exposes the state for metrics used by the HUD. 
+ */
 public class SLAMSystemManager : MonoBehaviour
 {
     [System.Serializable]
     public class DronePair
     {
         public string name;
-        public GameObject providerObject;
-        public GameObject controllerObject;
+        public GameObject providerObject; //where pose data comes from
+        public GameObject controllerObject; //where pose data goes
 
         [Tooltip("Collision safety radius in meters (SLAM space).")]
         public float safetyRadius = 0.5f;
@@ -34,10 +40,10 @@ public class SLAMSystemManager : MonoBehaviour
     private float _collisionHoldUntil = -1f;
 
 
-    private Dictionary<int, PoseData> _lastReceivedPoses = new Dictionary<int, PoseData>();
+    private Dictionary<int, PoseData> _lastReceivedPoses = new Dictionary<int, PoseData>(); //Raw SLAM poses
     private Dictionary<int, Pose> _trueRelativeOffsets = new Dictionary<int, Pose>();
 
-    private Dictionary<int, Vector3> _lastWorldPositions = new Dictionary<int, Vector3>();
+    private Dictionary<int, Vector3> _lastWorldPositions = new Dictionary<int, Vector3>(); //Corrected world positions
 
     private PoseQualityMonitor _quality;
 
@@ -53,7 +59,7 @@ public class SLAMSystemManager : MonoBehaviour
     [Header("Relocalization")]
     [SerializeField] private bool enableRelocalization = true;
 
-    //[Tooltip("Press this key to re-anchor the drifting SLAM world back onto Anchor Truth. (Depreciated)")]
+    //[Tooltip("Press this key to re-anchor the drifting SLAM world back onto Anchor Truth. (Not using anymore)")]
     //[SerializeField] private KeyCode relocalizeKey = KeyCode.R;
 
     [Tooltip("How long (seconds) to blend the relocalization correction (avoid snapping).")]
@@ -64,7 +70,7 @@ public class SLAMSystemManager : MonoBehaviour
 
     [SerializeField] private float autoRelocalizeCooldownSeconds = 2.0f;
 
-    // World correction state
+    // World correction state. Its the transform that maps SLAM space into Unity space
     private Pose _worldCorrection = Pose.identity;
     private Pose _worldCorrectionStart = Pose.identity;
     private Pose _worldCorrectionTarget = Pose.identity;
@@ -104,7 +110,7 @@ public class SLAMSystemManager : MonoBehaviour
     [Header("Collision Prevention")]
     [SerializeField] private bool enableCollisionPrevention = true;
 
-    [Tooltip("Distance at which slowing begins (meters).")]
+    [Tooltip("Distance at which slowing begins (in meters).")]
     [SerializeField] private float slowDownDistance = 2f;
 
     [Tooltip("Distance at which motion toward another drone is blocked.")]
@@ -113,7 +119,7 @@ public class SLAMSystemManager : MonoBehaviour
     [Tooltip("Maximum speed allowed when fully slowed.")]
     [SerializeField] private float minAllowedSpeed = 0.01f;
 
-    [Header("SLAM Confidence Scaling (Phase 14)")]
+    [Header("SLAM Confidence Scaling")]
     [SerializeField] private bool enableConfidenceScaling = true;
     [SerializeField] private float goodConfidenceScale = 1.0f;
     [SerializeField] private float degradedConfidenceScale = 0.5f;
@@ -134,6 +140,7 @@ public class SLAMSystemManager : MonoBehaviour
         public double timestamp;
     }
 
+    //Used for speed computation and predictive collision
     private Dictionary<int, PoseSample> _previousPose = new Dictionary<int, PoseSample>();
     private Dictionary<int, Vector3> _estimatedVelocity = new Dictionary<int, Vector3>();
 
@@ -143,6 +150,7 @@ public class SLAMSystemManager : MonoBehaviour
     // Throttles periodic drift diagnostics
     private int _lastDriftLogFrame = -999999;
 
+    //Initialization
     void Awake()
     {
         _startupTime = Time.time;
@@ -151,7 +159,7 @@ public class SLAMSystemManager : MonoBehaviour
         _quality = GetComponent<PoseQualityMonitor>();
         if (_quality == null)
         {
-            Debug.LogWarning("[Phase7] PoseQualityMonitor not found on manager. Quality stats disabled.");
+            Debug.LogWarning("PoseQualityMonitor not found on manager. Quality stats disabled.");
         }
 
     }
@@ -164,11 +172,13 @@ public class SLAMSystemManager : MonoBehaviour
         // Register truth transforms by drone ID
         _truthByDroneId.Clear();
 
+        //Register anchor truth object
         if (anchorTruthTransform != null)
         {
             _truthByDroneId[anchorDroneId] = anchorTruthTransform;
         }
 
+        //Register client truth objects using drone ID
         foreach (var t in clientTruthTransforms)
         {
             var provider = t.GetComponent<SyntheticPoseProvider>();
@@ -183,6 +193,7 @@ public class SLAMSystemManager : MonoBehaviour
 
     }
 
+    //Main runtime control loop
     private void Update()
     {
         if (!enableRelocalization) return;
@@ -190,15 +201,14 @@ public class SLAMSystemManager : MonoBehaviour
         _frameSpeedLimits.Clear();
         _confidenceSpeedScale.Clear();
 
-        bool collisionStillHeld = Time.time < _collisionHoldUntil;
-
+        //Used to add a slight buffer to prevent collision status in the HUD from flickering
+        bool collisionStillHeld = Time.time < _collisionHoldUntil; 
         if (!collisionStillHeld)
         {
             _collisionDebug.active = false;
         }
 
-
-
+        //Set to full speed default
         foreach (var id in _motionLimiters.Keys)
         {
             _frameSpeedLimits[id] = 1f;
@@ -211,7 +221,8 @@ public class SLAMSystemManager : MonoBehaviour
         //    TryStartRelocalize("MANUAL");
         //}
 
-        // Blend world correction over time
+
+        // Blend world correction over time to prevent objects from snapping instantly to a position
         if (_isBlendingWorldCorrection)
         {
             float t = Mathf.Clamp01((Time.time - _worldCorrectionBlendT0) / Mathf.Max(0.0001f, relocalizeBlendSeconds));
@@ -224,7 +235,7 @@ public class SLAMSystemManager : MonoBehaviour
             }
         }
 
-        // Auto relocalize
+        // Auto relocalize. Checks drift magnitude and cooldown and will start Relocalizing if it drifts outside the threshold 
         if (autoRelocalizeThresholdMeters > 0.0f && !_isBlendingWorldCorrection)
         {
             if (Time.time - _lastAutoRelocalizeTime > autoRelocalizeCooldownSeconds)
@@ -250,7 +261,7 @@ public class SLAMSystemManager : MonoBehaviour
             }
         }
 
-        // Additional Debug logging for Quality
+        // Additional Debug logging for Quality (includes packet rate and jitter)
         if (Time.frameCount % 120 == 0 && _quality != null)
         {
             for (int i = 0; i < dronePairs.Count; i++)
@@ -265,7 +276,7 @@ public class SLAMSystemManager : MonoBehaviour
             }
         }
 
-        //Staleness
+        //Staleness. Default behavior is when poses become stale the drone should freeze
         if (_quality != null)
         {
             foreach (var pair in dronePairs)
@@ -321,13 +332,14 @@ public class SLAMSystemManager : MonoBehaviour
         }
 
 
-        //ResetSpeedLimits();
+        //Collision related methods. One checks for immediate collision while the other does predictions
         if (enableCollisionPrevention)
         {
             CheckForCollisions();
             CheckForPredictedCollisions();
         }
 
+        //Applies motion limits to the drones based on various factors such as if pose confidence is low or a collision is predicted
         foreach (var id in _motionLimiters.Keys)
         {
             float collisionScale = _collisionDebug.active ? (_frameSpeedLimits.TryGetValue(id, out float c) ? c : 1f): 1f;
@@ -350,7 +362,7 @@ public class SLAMSystemManager : MonoBehaviour
 
     }
 
-
+    // Acquires the scene objects (provider, controller, debugger)
     private void InitializeSystem()
     {
         foreach (var pair in dronePairs)
@@ -359,6 +371,7 @@ public class SLAMSystemManager : MonoBehaviour
             pair.controller = pair.controllerObject?.GetComponent<IDroneController>();
             pair.debugger = pair.controllerObject?.GetComponent<DebugPoseViewer>();
 
+            //Wires SLAM data into the system
             if (pair.provider != null)
             {
                 pair.provider.OnPoseReceived += HandlePoseReceived;
@@ -369,7 +382,7 @@ public class SLAMSystemManager : MonoBehaviour
                 Debug.LogWarning($"No DebugPoseViewer found on {pair.controllerObject.name}. Positional logs will not be shown for this drone.");
             }
 
-            Debug.Log($"[Limiter] Registered motion limiters: {_motionLimiters.Count}");
+            //Debug.Log($"[Limiter] Registered motion limiters: {_motionLimiters.Count}");
             foreach (var kvp in _motionLimiters)
                 Debug.Log($"[Limiter] id={kvp.Key} limiter={kvp.Value}");
 
@@ -378,6 +391,7 @@ public class SLAMSystemManager : MonoBehaviour
 
     }
 
+    //Unsubscribes to pose events
     private void ShutdownSystem()
     {
         foreach (var pair in dronePairs)
@@ -395,6 +409,8 @@ public class SLAMSystemManager : MonoBehaviour
      * This section is not requried for real slam integration. 
      * -----------------------------------------------------------------------------
      */
+
+    //Figures out where each drone is relative to the anchor. In a real system we couldnt know the true offsets but we can in this project for testing and accuracy purposes
     private void CalculateTrueOffsets()
     {
         if (anchorTruthTransform == null)
@@ -403,8 +419,10 @@ public class SLAMSystemManager : MonoBehaviour
             return;
         }
 
+        //Absolute truth
         Pose anchorTruthPose = new Pose { position = anchorTruthTransform.position, rotation = anchorTruthTransform.rotation };
 
+        //For each clients truth transform, map its truth object to drone ID, then compute and store the relative pose
         foreach (var clientTransform in clientTruthTransforms)
         {
             var provider = clientTransform.GetComponent<SyntheticPoseProvider>();
@@ -422,10 +440,11 @@ public class SLAMSystemManager : MonoBehaviour
         }
     }
 
+    //Entry point for incoming SLAM pose data
     private void HandlePoseReceived(PoseData rawPose)
     {
-        _quality?.NotePacket(rawPose.DroneId);
-        _lastReceivedPoses[rawPose.DroneId] = rawPose;
+        _quality?.NotePacket(rawPose.DroneId); //Packet timing info recorded for PoseQualityMonitor
+        _lastReceivedPoses[rawPose.DroneId] = rawPose; 
 
         // Ignore incoming pose updates while stale
         if (freezeOnStalePose && _isDroneStale.TryGetValue(rawPose.DroneId, out bool isStale) && isStale)
@@ -435,6 +454,7 @@ public class SLAMSystemManager : MonoBehaviour
 
         _lastTrackingConfidence[rawPose.DroneId] = rawPose.TrackingConfidence;
 
+        //Finds the correct drone based on the incoming pose
         var targetController = FindControllerForId(rawPose.DroneId);
         var targetDebugger = FindDebuggerForId(rawPose.DroneId);
         if (targetController == null) return;
@@ -462,7 +482,7 @@ public class SLAMSystemManager : MonoBehaviour
 
         }
 
-        // --- LIVE CLIENT ALIGNMENT LOGIC ---
+        // --- CLIENT DRONE LOGIC ---
         if (_lastReceivedPoses.ContainsKey(anchorDroneId))
         {
             Pose anchorSlamPose = new Pose
@@ -510,6 +530,7 @@ public class SLAMSystemManager : MonoBehaviour
 
     }
 
+    //Maps drone ID to a Unity motion controller
     private IDroneController FindControllerForId(int id)
     {
         foreach (var pair in dronePairs)
@@ -519,6 +540,7 @@ public class SLAMSystemManager : MonoBehaviour
         return null;
     }
 
+    //Maps drone ID to a Unity debugger
     private DebugPoseViewer FindDebuggerForId(int id)
     {
         foreach (var pair in dronePairs)
@@ -534,23 +556,27 @@ public class SLAMSystemManager : MonoBehaviour
      * Parts of this section is not requried for real slam integration. 
      * -----------------------------------------------------------------------------
      */
+    //Gets the distance between anchor SLAM pose and anchor truth.
+    //In this simulation if the drone drifts far enough from the truth it triggers relocalization.
+    //But in a real system this method needs to be replaced with a different trigger based on how confident the system is that the map and pose are still valid. 
     private float EstimateAnchorDriftMeters()
     {
         if (anchorTruthTransform == null) return -1f;
         if (!_lastReceivedPoses.ContainsKey(anchorDroneId)) return -1f;
 
-        Vector3 anchorTruthPos = anchorTruthTransform.position;
+        Vector3 anchorTruthPos = anchorTruthTransform.position; //Get truth position
 
-        Pose anchorSlamPose = new Pose
+        Pose anchorSlamPose = new Pose //Get SLAM pose
         {
             position = _lastReceivedPoses[anchorDroneId].Position,
             rotation = _lastReceivedPoses[anchorDroneId].Rotation
         };
 
-        Pose anchorWorldPose = _worldCorrection * anchorSlamPose;
-        return Vector3.Distance(anchorTruthPos, anchorWorldPose.position);
+        Pose anchorWorldPose = _worldCorrection * anchorSlamPose; //Apply world correction
+        return Vector3.Distance(anchorTruthPos, anchorWorldPose.position); //Then compute distance
     }
 
+    //Realign SLAM world back to truth
     private void TryStartRelocalize(string reason)
     {
         if (anchorTruthTransform == null)
@@ -565,8 +591,14 @@ public class SLAMSystemManager : MonoBehaviour
             return;
         }
 
-        Pose anchorTruthPose = new Pose { position = anchorTruthTransform.position, rotation = anchorTruthTransform.rotation };
+        //Truth. Where the drone should be
+        Pose anchorTruthPose = new Pose 
+        { 
+            position = anchorTruthTransform.position, 
+            rotation = anchorTruthTransform.rotation 
+        };
 
+        //SLAM pose. Where the drone thinks it is
         Pose anchorSlamPose = new Pose
         {
             position = _lastReceivedPoses[anchorDroneId].Position,
@@ -575,8 +607,11 @@ public class SLAMSystemManager : MonoBehaviour
 
         // WorldCorrection * AnchorSlamPose == AnchorTruthPose
         // => WorldCorrection = AnchorTruthPose * inverse(AnchorSlamPose)
+
+        //Math: need a target such that target * anchorTruthPose = truth
         Pose target = anchorTruthPose * anchorSlamPose.Inverse();
 
+        //Sets up a smooth visual blending instead of instantly jumping objects during a relocalization
         _worldCorrectionStart = _worldCorrection;
         _worldCorrectionTarget = target;
         _worldCorrectionBlendT0 = Time.time;
@@ -595,7 +630,7 @@ public class SLAMSystemManager : MonoBehaviour
             Debug.LogWarning("[Relocalize] enableRelocalization is false.");
             return;
         }
-        TryStartRelocalize("MANUAL (Inspector ContextMenu)");
+        TryStartRelocalize("MANUAL (Inspector Context Menu)");
     }
 
     // Debug / HUD Accessors
@@ -624,6 +659,8 @@ public class SLAMSystemManager : MonoBehaviour
     }
 
     // --- Anchor Related Helper Methods ---
+    
+    //Checks to see if the anchor should be replaced based on  if its been unhealthy for a long enough time
     private bool IsAnchorFailed()
     {
         if (!_lastReceivedPoses.ContainsKey(anchorDroneId))
@@ -659,7 +696,7 @@ public class SLAMSystemManager : MonoBehaviour
         return false;
     }
 
-
+    //Selects a new anchor that is not stale, has good confidence, and isnt the current anchor
     private int FindBestAnchorCandidate()
     {
         foreach (var pair in dronePairs)
@@ -682,13 +719,13 @@ public class SLAMSystemManager : MonoBehaviour
         return -1;
     }
 
+    //Switches the anchor by preserving the old world pose and computing the correction so the new anchor ends up at that old pose. 
     private void SwitchAnchor(int newAnchorId)
     {
         if (newAnchorId == anchorDroneId) return;
 
         Debug.LogWarning($"[AnchorSwitch] Switching anchor from {anchorDroneId} to {newAnchorId}");
 
-        // We must re-anchor the world so visual positions do not jump.
         // WorldCorrection_new * NewAnchorSlamPose == OldAnchorWorldPose
 
         Pose oldAnchorWorldPose = Pose.identity;
@@ -710,7 +747,6 @@ public class SLAMSystemManager : MonoBehaviour
             rotation = _lastReceivedPoses[newAnchorId].Rotation
         };
 
-        // Solve: newWorldCorrection * newAnchorSlamPose = oldAnchorWorldPose
         Pose newWorldCorrection = oldAnchorWorldPose * newAnchorSlamPose.Inverse();
 
         _worldCorrection = newWorldCorrection;
@@ -744,6 +780,7 @@ public class SLAMSystemManager : MonoBehaviour
      * This section is not requried for real slam integration. 
      * -----------------------------------------------------------------------------
      */
+    //Recompute the truth offsets whenenver an anchor switches
     private void RecalculateOffsetsForNewAnchor()
     {
         _trueRelativeOffsets.Clear();
@@ -821,6 +858,7 @@ public class SLAMSystemManager : MonoBehaviour
         }
     }
 
+    //Uses the difference between poses to estimate the velocity
     private void UpdateVelocityEstimate(int droneId, Vector3 currentPos, double timestamp)
     {
         if (_previousPose.TryGetValue(droneId, out PoseSample prev))
@@ -840,6 +878,7 @@ public class SLAMSystemManager : MonoBehaviour
         };
     }
 
+    //Will compute the relative motion, predict the closest approach, and if its within certain boundaries it figures out a safer slowdown speed the drone can follow
     private void CheckForPredictedCollisions()
     {
         for (int i = 0; i < dronePairs.Count; i++)
@@ -964,6 +1003,7 @@ public class SLAMSystemManager : MonoBehaviour
         }
     }
 
+    //Uses IMotionLimiter component on world truth object and allows SLAM to indirectly control the objections
     private void RegisterMotionLimitersFromTruth()
     {
         _motionLimiters.Clear();
@@ -1005,6 +1045,7 @@ public class SLAMSystemManager : MonoBehaviour
 
     // --- ---
 
+    //SLAM confidence effects the speed
     private float GetConfidenceSpeedScale(int droneId)
     {
         if (!enableConfidenceScaling)
