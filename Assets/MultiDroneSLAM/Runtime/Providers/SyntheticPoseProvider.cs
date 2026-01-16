@@ -81,7 +81,7 @@ public class SyntheticPoseProvider : MonoBehaviour
         int confidence = 2;
         if (_confidenceOverride != null && _confidenceOverride.enabledOverride)
         {
-            confidence = Mathf.Min(confidence, _confidenceOverride.maxConfidenceWhileDegraded);
+            confidence = Mathf.Min(confidence, _confidenceOverride.GetForcedConfidence());
         }
 
         //Simulates packet loss by returning early

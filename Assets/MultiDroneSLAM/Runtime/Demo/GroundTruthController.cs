@@ -17,9 +17,18 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
     [Range(0f, 1f)]
     [SerializeField] private float speedScale = 1.0f;
 
+    private MotionAxisMask axisMask = new MotionAxisMask
+    {
+        allowX = true,
+        allowY = true,
+        allowZ = true,
+        allowYaw = true
+    };
+
 
     private Vector2 moveInput;
     private float yawInput;
+    private float verticalInput;
 
     void Update()
     {
@@ -37,6 +46,7 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
         {
             moveInput = Vector2.zero;
             yawInput = 0f;
+            verticalInput = 0f;
 
             if (Keyboard.current.wKey.isPressed) moveInput.y += 1f;
             if (Keyboard.current.sKey.isPressed) moveInput.y -= 1f;
@@ -45,6 +55,10 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
 
             if (Keyboard.current.eKey.isPressed) yawInput += 1f;
             if (Keyboard.current.qKey.isPressed) yawInput -= 1f;
+
+            if (Keyboard.current.rKey.isPressed) verticalInput += 1f;
+            if (Keyboard.current.fKey.isPressed) verticalInput -= 1f;
+
         }
 
         // --- Drone 1 Controls (IJKL) ---
@@ -52,6 +66,7 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
         {
             moveInput = Vector2.zero;
             yawInput = 0f;
+            verticalInput = 0f;
 
             if (Keyboard.current.iKey.isPressed) moveInput.y += 1f;
             if (Keyboard.current.kKey.isPressed) moveInput.y -= 1f;
@@ -60,13 +75,23 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
 
             if (Keyboard.current.oKey.isPressed) yawInput += 1f;
             if (Keyboard.current.uKey.isPressed) yawInput -= 1f;
+
+            if (Keyboard.current.yKey.isPressed) verticalInput += 1f;
+            if (Keyboard.current.hKey.isPressed) verticalInput -= 1f;
+
         }
     }
 
     private void ApplyMovement()
     {
         //Expressed in local frame
-        Vector3 movement = transform.forward * moveInput.y + transform.right * moveInput.x;
+        Vector3 movement = transform.forward * moveInput.y + transform.right * moveInput.x + transform.up * verticalInput;
+
+        //DOF contraints
+        if (!axisMask.allowX) movement.x = 0f;
+        if (!axisMask.allowY) movement.y = 0f;
+        if (!axisMask.allowZ) movement.z = 0f;
+        float yaw = axisMask.allowYaw ? yawInput : 0f;
 
         transform.position += movement * moveSpeed * speedScale * Time.deltaTime;
         transform.rotation *= Quaternion.Euler(0f, yawInput * rotateSpeed * Time.deltaTime, 0f);
@@ -82,6 +107,12 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
         speedScale = Mathf.Clamp01(scale);
         Debug.Log($"[LimiterApply] GroundTruth {droneId} speedScale set => {speedScale:F2}");
     }
+
+    public void SetAxisMask(MotionAxisMask mask)
+    {
+        axisMask = mask;
+    }
+
 
 
 }

@@ -342,14 +342,19 @@ public class SLAMSystemManager : MonoBehaviour
         //Applies motion limits to the drones based on various factors such as if pose confidence is low or a collision is predicted
         foreach (var id in _motionLimiters.Keys)
         {
+            var limiter = _motionLimiters[id];
+
             float collisionScale = _collisionDebug.active ? (_frameSpeedLimits.TryGetValue(id, out float c) ? c : 1f): 1f;
-
-
             float confidenceScale = GetConfidenceSpeedScale(id);
-
             float finalScale = collisionScale * confidenceScale;
 
-            _motionLimiters[id].SetSpeedScale(finalScale);
+            limiter.SetSpeedScale(finalScale);
+
+            if (_lastTrackingConfidence.TryGetValue(id, out int conf))
+            {
+                MotionAxisMask mask = GetAxisMaskForConfidence(conf);
+                limiter.SetAxisMask(mask);
+            }
 
             Debug.Log(
                 $"[SpeedApply] Drone {id} collision={collisionScale:F2} " +
@@ -1066,6 +1071,18 @@ public class SLAMSystemManager : MonoBehaviour
     {
         return _lastTrackingConfidence.TryGetValue(droneId, out confidence);
     }
+
+    private MotionAxisMask GetAxisMaskForConfidence(int conf)
+    {
+        return conf switch
+        {
+            >= 2 => new MotionAxisMask { allowX = true, allowY = true, allowZ = true, allowYaw = true }, // Good
+            1 => new MotionAxisMask { allowX = true, allowY = false, allowZ = true, allowYaw = true }, // Degraded (stops vertical movement)
+            0 => new MotionAxisMask { allowX = false, allowY = false, allowZ = false, allowYaw = true }, // Poor (drone can only rotate)
+            _ => new MotionAxisMask { allowX = false, allowY = false, allowZ = false, allowYaw = false }  // Lost (no movement)
+        };
+    }
+
 
     //Accessors for HUD Collision Info
     public bool Debug_IsCollisionActive()
