@@ -4,4 +4,6 @@ public interface IMotionLimiter
     void SetSpeedScale(float scale);
 
     void SetAxisMask(MotionAxisMask mask);
+
+    void SetMotionRejection(MotionRejection rejection);
 }

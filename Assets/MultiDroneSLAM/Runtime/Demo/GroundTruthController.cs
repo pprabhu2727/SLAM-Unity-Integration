@@ -24,6 +24,7 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
         allowZ = true,
         allowYaw = true
     };
+    private MotionRejection rejection;
 
 
     private Vector2 moveInput;
@@ -93,6 +94,18 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
         if (!axisMask.allowZ) movement.z = 0f;
         float yaw = axisMask.allowYaw ? yawInput : 0f;
 
+        //Puts a hard contraint/stop towards movement in the direction of the other drone if close enough
+        if (rejection.active && movement.sqrMagnitude > 1e-6f)
+        {
+            float toward = Vector3.Dot(movement, rejection.worldNormal);
+
+            if (toward > 0f)
+            {
+                Vector3 blocked = rejection.worldNormal * toward;
+                movement -= blocked;
+            }
+        }
+
         transform.position += movement * moveSpeed * speedScale * Time.deltaTime;
         transform.rotation *= Quaternion.Euler(0f, yawInput * rotateSpeed * Time.deltaTime, 0f);
 
@@ -113,6 +126,10 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
         axisMask = mask;
     }
 
+    public void SetMotionRejection(MotionRejection rej)
+    {
+        rejection = rej;
+    }
 
 
 }

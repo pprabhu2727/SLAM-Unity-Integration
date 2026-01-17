@@ -52,8 +52,7 @@ public class SLAMSystemManager : MonoBehaviour
     private Dictionary<int, IMotionLimiter> _motionLimiters = new();
     private Dictionary<int, float> _frameSpeedLimits = new();
     private Dictionary<int, float> _confidenceSpeedScale = new();
-
-
+ 
 
     //Relocalization Fields
     [Header("Relocalization")]
@@ -111,13 +110,20 @@ public class SLAMSystemManager : MonoBehaviour
     [SerializeField] private bool enableCollisionPrevention = true;
 
     [Tooltip("Distance at which slowing begins (in meters).")]
-    [SerializeField] private float slowDownDistance = 2f;
+    [SerializeField] private float slowDownDistance = 2.5f;
 
-    [Tooltip("Distance at which motion toward another drone is blocked.")]
-    [SerializeField] private float hardStopDistance = 1f;
+    [Tooltip("Distance at which motion toward another reaches max slowdown.")]
+    [SerializeField] private float hardStopDistance = 1.5f;
 
     [Tooltip("Maximum speed allowed when fully slowed.")]
-    [SerializeField] private float minAllowedSpeed = 0.01f;
+    [SerializeField] private float minAllowedSpeed = 0f;
+
+    [Header("Hard Safety Stop")]
+    [SerializeField] private float rejectDistance = .9f;
+    private Dictionary<int, MotionRejection> _motionRejections = new();
+
+
+    
 
     [Header("SLAM Confidence Scaling")]
     [SerializeField] private bool enableConfidenceScaling = true;
@@ -200,6 +206,7 @@ public class SLAMSystemManager : MonoBehaviour
 
         _frameSpeedLimits.Clear();
         _confidenceSpeedScale.Clear();
+        _motionRejections.Clear();
 
         //Used to add a slight buffer to prevent collision status in the HUD from flickering
         bool collisionStillHeld = Time.time < _collisionHoldUntil; 
@@ -352,8 +359,16 @@ public class SLAMSystemManager : MonoBehaviour
 
             if (_lastTrackingConfidence.TryGetValue(id, out int conf))
             {
-                MotionAxisMask mask = GetAxisMaskForConfidence(conf);
-                limiter.SetAxisMask(mask);
+                limiter.SetAxisMask(GetAxisMaskForConfidence(conf));
+            }
+
+            if (_motionRejections.TryGetValue(id, out var rejection))
+            {
+                limiter.SetMotionRejection(rejection);
+            }
+            else
+            {
+                limiter.SetMotionRejection(new MotionRejection { active = false });
             }
 
             Debug.Log(
@@ -911,6 +926,30 @@ public class SLAMSystemManager : MonoBehaviour
                 Vector3 vB = _estimatedVelocity[idB];
 
                 Vector3 pRel = pB - pA;
+                float currentDistance = Vector3.Distance(pA, pB);
+                Vector3 normalAB = pRel.normalized;
+
+                if (currentDistance < rejectDistance)
+                {
+                    _motionRejections[idA] = new MotionRejection
+                    {
+                        active = true,
+                        worldNormal = normalAB
+                    };
+
+                    _motionRejections[idB] = new MotionRejection
+                    {
+                        active = true,
+                        worldNormal = -normalAB
+                    };
+
+                    _frameSpeedLimits[idA] = Mathf.Min(_frameSpeedLimits[idA], 0.25f);
+                    _frameSpeedLimits[idB] = Mathf.Min(_frameSpeedLimits[idB], 0.25f);
+
+                    _collisionDebug.active = true;
+                    _collisionHoldUntil = Time.time + collisionHoldSeconds;
+                }
+
                 Vector3 vRel = vB - vA;
 
                 float speedSq = vRel.sqrMagnitude;
@@ -921,6 +960,11 @@ public class SLAMSystemManager : MonoBehaviour
 
                 if (tClosest <= 0f || tClosest > predictionHorizonSeconds)
                     continue;
+
+                
+
+                
+
 
                 Vector3 pA_future = pA + vA * tClosest;
                 Vector3 pB_future = pB + vB * tClosest;
@@ -939,6 +983,33 @@ public class SLAMSystemManager : MonoBehaviour
 
                     bool aMovingToward = IsMovingToward(vA, toB);
                     bool bMovingToward = IsMovingToward(vB, -toB);
+
+                    //Motion Rejection code for preventing drone movement in an unsafe direction
+                    //bool insideHardZone = futureDistance < rejectDistance;
+                    //if (insideHardZone)
+                    //{
+                    //    Vector3 normalAB = (pB - pA).normalized;
+
+                    //    if (aMovingToward)
+                    //    {
+                    //        _motionRejections[idA] = new MotionRejection
+                    //        {
+                    //            active = true,
+                    //            worldNormal = normalAB
+                    //        };
+                    //        _frameSpeedLimits[idA] = 0f;
+                    //    }
+
+                    //    if (bMovingToward)
+                    //    {
+                    //        _motionRejections[idB] = new MotionRejection
+                    //        {
+                    //            active = true,
+                    //            worldNormal = -normalAB
+                    //        };
+                    //        _frameSpeedLimits[idB] = 0f;
+                    //    }
+                    //}
 
                     Vector3 relDir = pRel.normalized;
                     float closingSpeed = Mathf.Max(0f, Vector3.Dot(vRel, relDir));
@@ -976,7 +1047,10 @@ public class SLAMSystemManager : MonoBehaviour
                     );
 
                 }
+
             }
+
+
         }
     }
 
@@ -995,9 +1069,9 @@ public class SLAMSystemManager : MonoBehaviour
 
         float t = Mathf.InverseLerp(hardStopDistance, slowDownDistance, distance);
 
-        float curved = t * t;
+        float curved = Mathf.Pow(t, 4f);
 
-        return Mathf.Clamp(curved, minAllowedSpeed, 1f);
+        return Mathf.Clamp01(curved);
     }
 
     private void ResetSpeedLimits()
