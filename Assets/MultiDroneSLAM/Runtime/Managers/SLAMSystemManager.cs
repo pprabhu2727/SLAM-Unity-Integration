@@ -118,12 +118,18 @@ public class SLAMSystemManager : MonoBehaviour
     [Tooltip("Maximum speed allowed when fully slowed.")]
     [SerializeField] private float minAllowedSpeed = 0f;
 
-    [Header("Hard Safety Stop")]
-    [SerializeField] private float rejectDistance = .9f;
+    [Header("Control Barrier Safety")]
+    [SerializeField] private float barrierStartDistance = 2f;
+    [SerializeField] private float barrierHardDistance = 1f;
+    [SerializeField] private float barrierAlpha = 3.0f;
     private Dictionary<int, MotionRejection> _motionRejections = new();
+    private float _debugBarrierH;
+    private float _debugBarrierDhdt;
+    private bool _debugBarrierActive;
 
 
-    
+
+
 
     [Header("SLAM Confidence Scaling")]
     [SerializeField] private bool enableConfidenceScaling = true;
@@ -207,6 +213,8 @@ public class SLAMSystemManager : MonoBehaviour
         _frameSpeedLimits.Clear();
         _confidenceSpeedScale.Clear();
         _motionRejections.Clear();
+        _debugBarrierActive = false;
+
 
         //Used to add a slight buffer to prevent collision status in the HUD from flickering
         bool collisionStillHeld = Time.time < _collisionHoldUntil; 
@@ -929,28 +937,39 @@ public class SLAMSystemManager : MonoBehaviour
                 float currentDistance = Vector3.Distance(pA, pB);
                 Vector3 normalAB = pRel.normalized;
 
-                if (currentDistance < rejectDistance)
+                Vector3 vRel = vB - vA;
+
+                if (currentDistance < barrierStartDistance)
                 {
-                    _motionRejections[idA] = new MotionRejection
+                    float h = (currentDistance * currentDistance) - (barrierHardDistance * barrierHardDistance);
+
+                    float dhdt = 2f * Vector3.Dot(pRel, vRel);
+
+                    bool violating = dhdt < -barrierAlpha * h;
+
+                    if (violating)
                     {
-                        active = true,
-                        worldNormal = normalAB
-                    };
+                        _motionRejections[idA] = new MotionRejection
+                        {
+                            active = true,
+                            worldNormal = normalAB
+                        };
 
-                    _motionRejections[idB] = new MotionRejection
-                    {
-                        active = true,
-                        worldNormal = -normalAB
-                    };
+                        _motionRejections[idB] = new MotionRejection
+                        {
+                            active = true,
+                            worldNormal = -normalAB
+                        };
 
-                    _frameSpeedLimits[idA] = Mathf.Min(_frameSpeedLimits[idA], 0.25f);
-                    _frameSpeedLimits[idB] = Mathf.Min(_frameSpeedLimits[idB], 0.25f);
+                        _collisionDebug.active = true;
+                        _collisionHoldUntil = Time.time + collisionHoldSeconds;
 
-                    _collisionDebug.active = true;
-                    _collisionHoldUntil = Time.time + collisionHoldSeconds;
+                        _debugBarrierH = h;
+                        _debugBarrierDhdt = dhdt;
+                        _debugBarrierActive = true;
+                    }
                 }
 
-                Vector3 vRel = vB - vA;
 
                 float speedSq = vRel.sqrMagnitude;
                 if (speedSq < minRelativeSpeed * minRelativeSpeed)
@@ -1168,6 +1187,20 @@ public class SLAMSystemManager : MonoBehaviour
     {
         return _collisionDebug.ttc;
     }
+
+    public bool Debug_IsBarrierActive() 
+    {
+        return _debugBarrierActive;
+    } 
+    public float Debug_GetBarrierH()
+    {
+        return _debugBarrierH;
+    }    
+    public float Debug_GetBarrierDhdt()
+    {
+        return _debugBarrierDhdt;
+    }  
+
 
 
 

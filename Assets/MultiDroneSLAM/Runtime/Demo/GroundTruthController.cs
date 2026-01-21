@@ -97,12 +97,18 @@ public class GroundTruthController : MonoBehaviour, IMotionLimiter
         //Puts a hard contraint/stop towards movement in the direction of the other drone if close enough
         if (rejection.active && movement.sqrMagnitude > 1e-6f)
         {
-            float toward = Vector3.Dot(movement, rejection.worldNormal);
+            Vector3 dir = movement.normalized;
+            float toward = Vector3.Dot(dir, rejection.worldNormal);
 
             if (toward > 0f)
             {
                 Vector3 blocked = rejection.worldNormal * toward;
-                movement -= blocked;
+                Vector3 safeDir = dir - blocked;
+
+                if (safeDir.sqrMagnitude > 1e-6f)
+                    movement = safeDir.normalized * movement.magnitude;
+                else
+                    movement = Vector3.zero;
             }
         }
 

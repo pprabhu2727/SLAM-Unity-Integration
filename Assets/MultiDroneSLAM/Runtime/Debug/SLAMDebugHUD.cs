@@ -158,7 +158,27 @@ public class SLAMDebugHUD : MonoBehaviour
             "Soft avoidance active",
             "yellow"
         ));
-   
+
+        sb.AppendLine(Section("SAFETY CONTROLLER"));
+        bool barrier = slamManager.Debug_IsBarrierActive();
+
+        if (!barrier)
+        {
+            sb.AppendLine(Colorize("Control Barrier: INACTIVE", "green"));
+        }
+        else
+        {
+            float h = slamManager.Debug_GetBarrierH();
+            float dhdt = slamManager.Debug_GetBarrierDhdt();
+
+            string hColor = h < 0f ? "red" : h < 0.3f ? "yellow" : "orange";
+
+            sb.AppendLine(Colorize("Control Barrier: ACTIVE", "red"));
+            sb.AppendLine(Colorize($"h(x)   = {h:F3}", hColor));
+            sb.AppendLine(Colorize($"dh/dt = {dhdt:F3}", "yellow"));
+        }
+
+
 
 
 
