@@ -344,6 +344,7 @@ MonoBehaviour:
   dropProbability: 0.3
   degradedOutputHz: 15
   maxConfidenceWhileDegraded: 1
+  forcedLevel: 1
 --- !u!1 &373084846
 GameObject:
   m_ObjectHideFlags: 0
@@ -960,7 +961,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1c3689afef2f544419f5ec705eb644a6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SharedDriftManager
-  driftPerSecond: {x: 0.01, y: 0, z: 0.01}
+  driftPerSecond: {x: 0.0001, y: 0, z: 0.0001}
 --- !u!4 &1217174467
 Transform:
   m_ObjectHideFlags: 0
@@ -1031,7 +1032,7 @@ MonoBehaviour:
   freezeOnStalePose: 1
   minTrackingConfidenceForAnchor: 1
   anchorRecheckSeconds: 0.5
-  anchorFailureSeconds: 10
+  anchorFailureSeconds: 20
   anchorSwitchCooldownSeconds: 5
   startupGraceSeconds: 2
   predictionHorizonSeconds: 2
@@ -1040,6 +1041,10 @@ MonoBehaviour:
   slowDownDistance: 2
   hardStopDistance: 1
   minAllowedSpeed: 0.01
+  barrierStartDistance: 2
+  barrierHardDistance: 1
+  barrierAlpha: 3
+  safetyObstacles: []
   enableConfidenceScaling: 1
   goodConfidenceScale: 1
   degradedConfidenceScale: 0.5
@@ -1269,6 +1274,7 @@ MonoBehaviour:
   dropProbability: 0.1
   degradedOutputHz: 15
   maxConfidenceWhileDegraded: 1
+  forcedLevel: 1
 --- !u!1001 &1557795928
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1549,6 +1555,7 @@ GameObject:
   - component: {fileID: 2088824748}
   - component: {fileID: 2088824752}
   - component: {fileID: 2088824751}
+  - component: {fileID: 2088824753}
   m_Layer: 0
   m_Name: Virtual_Treasure
   m_TagString: Untagged
@@ -1670,7 +1677,7 @@ Rigidbody:
   serializedVersion: 5
   m_Mass: 1
   m_LinearDamping: 0
-  m_AngularDamping: 0.05
+  m_AngularDamping: 0.02
   m_CenterOfMass: {x: 0, y: 0, z: 0}
   m_InertiaTensor: {x: 1, y: 1, z: 1}
   m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
@@ -1687,6 +1694,20 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &2088824753
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2088824746}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0b94b89e33f8405479c4ac3cb95abdce, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SafetyObstacle
+  safetyRadius: 0.5
+  velocity: {x: 0, y: 0, z: 0}
 --- !u!1 &2127740896
 GameObject:
   m_ObjectHideFlags: 0

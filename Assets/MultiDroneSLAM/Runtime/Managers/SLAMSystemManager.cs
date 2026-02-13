@@ -127,6 +127,8 @@ public class SLAMSystemManager : MonoBehaviour
     private float _debugBarrierDhdt;
     private bool _debugBarrierActive;
 
+    [Header("Safety Obstacles")]
+    [SerializeField] private List<SafetyObstacle> safetyObstacles = new();
 
 
 
@@ -202,6 +204,9 @@ public class SLAMSystemManager : MonoBehaviour
 
         RegisterMotionLimitersFromTruth();
 
+        safetyObstacles.Clear();
+        safetyObstacles.AddRange(FindObjectsOfType<SafetyObstacle>());
+        Debug.Log($"Registered {safetyObstacles.Count} safety obstacles.");
 
     }
 
@@ -352,6 +357,7 @@ public class SLAMSystemManager : MonoBehaviour
         {
             CheckForCollisions();
             CheckForPredictedCollisions();
+            CheckDroneObstacleBarriers();
         }
 
         //Applies motion limits to the drones based on various factors such as if pose confidence is low or a collision is predicted
@@ -1072,6 +1078,71 @@ public class SLAMSystemManager : MonoBehaviour
 
         }
     }
+
+    private void CheckDroneObstacleBarriers()
+    {
+        foreach (var drone in dronePairs)
+        {
+            if (drone.controller == null) continue;
+
+            int id = drone.controller.DroneId;
+
+            if (!_lastWorldPositions.ContainsKey(id) ||
+                !_estimatedVelocity.ContainsKey(id))
+                continue;
+
+            Vector3 dronePos = _lastWorldPositions[id];
+            Vector3 droneVel = _estimatedVelocity[id];
+
+            foreach (var obstacle in safetyObstacles)
+            {
+                if (obstacle == null) continue;
+
+                Vector3 obsPos = obstacle.Position;
+                Vector3 obsVel = obstacle.Velocity;
+
+                Vector3 pRel = obsPos - dronePos;
+                Vector3 vRel = obsVel - droneVel;
+
+                float distance = pRel.magnitude;
+
+                float combinedRadius =
+                    drone.safetyRadius +
+                    obstacle.safetyRadius;
+
+                Vector3 normal = pRel.normalized;
+
+                // Barrier function
+                float h =
+                    (distance * distance)
+                    - (combinedRadius * combinedRadius);
+
+                float dhdt =
+                    2f * Vector3.Dot(pRel, vRel);
+
+                bool violating =
+                    dhdt < -barrierAlpha * h;
+
+                if (violating)
+                {
+                    _motionRejections[id] = new MotionRejection
+                    {
+                        active = true,
+                        worldNormal = normal
+                    };
+
+                    _collisionDebug.active = true;
+                    _collisionHoldUntil =
+                        Time.time + collisionHoldSeconds;
+
+                    _debugBarrierActive = true;
+                    _debugBarrierH = h;
+                    _debugBarrierDhdt = dhdt;
+                }
+            }
+        }
+    }
+
 
     private bool IsMovingToward(Vector3 velocity, Vector3 toOther)
     {
