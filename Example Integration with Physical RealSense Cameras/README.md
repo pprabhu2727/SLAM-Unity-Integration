@@ -4,8 +4,8 @@ This guide and the contents of the folder can help you get set up to integrate t
 ### Folder contents: 
 - t265_udp_pose_sender
   - A Visual Studio 2022 project that contains the script for sending the pose to my Unity project.
-- xrlabs_sf
-  - RealSense files.
+- xrlabs_sf (Cannot be uploaded to Github due to file size contraints)
+  - A folder that contains the librealsense files. Those files can instead by found here: https://github.com/realsenseai/librealsense. And the files can be placed in some other folder 'doesn't need to be named xrlabs_sf'. xrlabs_sf folder only contains those librealsense files. 
 
 ## Setup
 First, download and save the contents of the folder to a location on your computer (you'll need the filepath later). You will also need Visual Studio 2022 installed, and my Unity project should be installed. 
